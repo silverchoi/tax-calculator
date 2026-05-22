@@ -128,7 +128,7 @@ else:
             "선입선출 차익(원)": "{:,}원",
             "절세 가능 금액(원)": "{:,}원"
         })\
-        .applymap(color_roi, subset=["수익률(%)"])\
+        .map(color_roi, subset=["수익률(%)"])\
         .highlight_max(subset=["절세 가능 금액(원)"], color="#2e3d30") # 가장 돈 많이 아끼는 행 하이라이트
 
     # 화면에 이쁘게 뿌려주기
