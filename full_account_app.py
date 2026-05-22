@@ -129,7 +129,6 @@ else:
             "절세 가능 금액(원)": "{:,}원"
         })\
         .map(color_roi, subset=["수익률(%)"])\
-        .highlight_max(subset=["절세 가능 금액(원)"], color="#1e3a1e") # 가장 돈 많이 아끼는 행 하이라이트
 
     # 화면에 이쁘게 뿌려주기
     st.dataframe(styled_df, use_container_width=True, hide_index=True)
