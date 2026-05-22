@@ -37,7 +37,7 @@ def get_current_prices(tickers):
         try:
             stock = yf.Ticker(ticker)
             # 실시간가 조회가 실패할 경우를 대비해 전일 종가(previousClose)를 백업으로 사용
-            todays_data = stock.history(period='1d')
+            todays_data = stock.history(period='1d', prepost=True)
             if not todays_data.empty:
                 prices[ticker] = todays_data['Close'].iloc[-1]
             else:
