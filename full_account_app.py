@@ -30,13 +30,11 @@ def load_data():
     except:
         return None
 
-# 실시간 현재가 가져오기 함수 (야후 파이낸스 연동)
 def get_current_prices(tickers):
     prices = {}
     for ticker in tickers:
         try:
             stock = yf.Ticker(ticker)
-            # 실시간가 조회가 실패할 경우를 대비해 전일 종가(previousClose)를 백업으로 사용
             todays_data = stock.history(period='1d', prepost=True)
             if not todays_data.empty:
                 prices[ticker] = todays_data['Close'].iloc[-1]
@@ -51,15 +49,13 @@ df = load_data()
 if df is None:
     st.error(f"❌ 폴더 내에 '{FILE_NAME}' 파일이 존재하지 않습니다. 파일을 동일한 폴더에 넣어주세요.")
 else:
-    # 1. 실시간 시세 긁어오기
     unique_tickers = df['코드'].unique()
     with st.spinner('🔄 야후 파이낸스에서 실시간 미국 시장 시세를 끌어오는 중입니다...'):
         current_prices = get_current_prices(unique_tickers)
     
-    # 사이드바 환율 설정 (실시간 고정 환율 예시값, 수동 조절 가능)
+    st.sidebar.header("⚙️ 시뮬레이션 설정")
     exchange_rate = st.sidebar.number_input("💵 적용 환율 (원/$)", min_value=1000.0, max_value=2000.0, value=1400.0, step=10.0)
 
-    # 전체 계좌 통합 연산
     total_dashboard = []
     ma_total_gain_krw = 0
     fifo_total_gain_krw = 0
@@ -69,47 +65,37 @@ else:
         ticker_code = group_sorted.iloc[0]['코드']
         total_qty = group_sorted['매수수량'].sum()
         
-        # 원화/달러 총 투자금액 (원가)
         total_cost_krw = group_sorted['매수금액(원)'].sum()
         total_cost_usd = (group_sorted['매수가'] * group_sorted['매수수량']).sum()
         
-        # 실시간 현재가 적용
         now_price_usd = current_prices.get(ticker_code, 0.0)
-        if now_price_usd == 0.0: # 시세를 못 끌어왔을 경우 예외처리
+        if now_price_usd == 0.0:
             now_price_usd = group_sorted.iloc[-1]['매수가'] 
             
-        # [이동평균법 양도차익 계산]
         ma_gain_usd = (now_price_usd * total_qty) - total_cost_usd
         ma_gain_krw = ma_gain_usd * exchange_rate
-        
-        # [선입선출법 양도차익 계산]
         fifo_gain_krw = (now_price_usd * total_qty * exchange_rate) - total_cost_krw
 
-        # 수익률 계산
         roi = ((now_price_usd * total_qty) - total_cost_usd) / total_cost_usd * 100 if total_cost_usd > 0 else 0
-
         tax_diff_krw = fifo_gain_krw - ma_gain_krw
         best_method = "이동평균법 유리" if ma_gain_krw < fifo_gain_krw else ("선입선출법 유리" if ma_gain_krw > fifo_gain_krw else "동일")
         
         total_dashboard.append({
             "종목명": name,
-            "현재가($)": f"${now_price_usd:,.2f}",
-            "수익률": f"{roi:+.2f}%",
+            "현재가($)": now_price_usd,
+            "수익률(%)": roi,
             "이동평균 차익(원)": int(ma_gain_krw),
             "선입선출 차익(원)": int(fifo_gain_krw),
             "추천 방식": best_method,
-            "절세 가능 금액(원)": f"{int(abs(tax_diff_krw)):,}"
+            "절세 가능 금액(원)": int(abs(tax_diff_krw))
         })
         
         ma_total_gain_krw += max(0, ma_gain_krw)
         fifo_total_gain_krw += max(0, fifo_gain_krw)
 
-    # 2. 세금(양도소득세) 계산기 로직 주입
-    # 국세청 세법: (총 양도차익 - 기본공제 250만원) * 세율 22%
     ma_tax = max(0, (ma_total_gain_krw - 2500000) * 0.22)
     fifo_tax = max(0, (fifo_total_gain_krw - 2500000) * 0.22)
 
-    # 상단 실시간 대시보드 요약 정보 카드
     st.subheader("🏁 실시간 기준 예상 세금(양도세) 비교 리포트")
     sum_col1, sum_col2, sum_col3 = st.columns(3)
     
@@ -124,20 +110,33 @@ else:
 
     st.divider()
 
-    # 상세 결과 테이블 출력 파트
+    # 🎨 여기서부터 테이블 스타일 꾸미기 파트!
     st.subheader("🔍 실시간 종목별 상세 수익 및 절세 분석")
     df_dashboard = pd.DataFrame(total_dashboard)
     
-    # 금액 가독성을 위해 천단위 콤마 포맷팅 변환
-    df_dashboard["이동평균 차익(원)"] = df_dashboard["이동평균 차익(원)"].map(lambda x: f"{x:,}")
-    df_dashboard["선입선출 차익(원)"] = df_dashboard["선입선출 차익(원)"].map(lambda x: f"{x:,}")
-    
-    st.dataframe(df_dashboard, use_container_width=True, hide_index=True)
+    # 스타일 함수 정의 (수익률 양수면 빨강, 음수면 파랑)
+    def color_roi(val):
+        color = '#ef4444' if val > 0 else ('#3b82f6' if val < 0 else '#ffffff')
+        return f'color: {color}; font-weight: bold;'
+
+    # 판다스 스타일 적용 엔진
+    styled_df = df_dashboard.style\
+        .format({
+            "현재가($)": "${:,.2f}",
+            "수익률(%)": "{:+.2f}%",
+            "이동평균 차익(원)": "{:,}원",
+            "선입선출 차익(원)": "{:,}원",
+            "절세 가능 금액(원)": "{:,}원"
+        })\
+        .applymap(color_roi, subset=["수익률(%)"])\
+        .highlight_max(subset=["절세 가능 금액(원)"], color="#2e3d30") # 가장 돈 많이 아끼는 행 하이라이트
+
+    # 화면에 이쁘게 뿌려주기
+    st.dataframe(styled_df, use_container_width=True, hide_index=True)
 
     st.markdown("""
     ---
     ### 📜 대한민국 해외주식 세법 상식 가이드
-    * **기본 공제:** 1인당 연간 해외주식 양도차익 총합에서 **250만 원**이 공제됩니다. 본 프로그램은 이 공제액이 자동으로 반영되어 세금을 연산합니다.
+    * **기본 공제:** 1인당 연간 해외주식 양도차익 총합에서 **250만 원**이 공제됩니다.
     * **세율:** 공제 후 남은 순이익의 **22%(양도소득세 20% + 지방소득세 2%)**가 세금으로 부과됩니다.
-    * **주의사항:** 국내 증권사 시스템은 국세청 기본값인 **선입선출법**으로만 세금을 보여주므로, 이동평균법이 유리하게 나온 종목은 매도 전에 세무사와 별도 확정신고 상담을 하시는 것이 좋습니다.
     """)
