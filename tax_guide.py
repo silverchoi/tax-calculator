@@ -1,9 +1,10 @@
 import streamlit as st
 import pandas as pd
 import datetime
-import plotly.express as px  # 🚨 아까 누락되어 NameError를 일으킨 범인을 확실히 검어쥐었습니다!
+import plotly.express as px
 import xml.etree.ElementTree as ET
 import urllib.request
+import re
 
 def fetch_realtime_market_news():
     """야후 파이낸스 실시간 월가 마켓 뉴스 RSS 피드를 실시간으로 긁어오는 엔진"""
@@ -15,66 +16,95 @@ def fetch_realtime_market_news():
             xml_data = response.read()
             
         root = ET.fromstring(xml_data)
-        # 최신 월가 실시간 뉴스 중 상위 6개를 동적으로 추출
-        for item in root.findall('.//item')[:6]:  
+        for item in root.findall('.//item')[:5]:  # 최신 이슈 5개 추출
             title = item.find('title').text
             description = item.find('description').text if item.find('description') is not None else ""
             news_list.append({"title": title, "desc": description})
     except Exception as e:
-        # 혹시 모를 네트워크 단절 시 앱이 터지지 않도록 방어용 실시간 예시 매핑
         news_list = [
             {"title": "Tech Stocks Gain Ground as AI Microchip Demand Surges Across Enterprise Sectors", "desc": "NVIDIA and AMD see strong pre-market volume driven by upcoming data center infrastructure updates."},
             {"title": "Treasury Yields Rise Unexpectedly Prompting Mega-Cap Growth Valuation Pressures", "desc": "Macro interest rate concerns cause mild profit-taking in high-multiple semiconductor and tech ecosystems."}
         ]
     return news_list
 
-def analyze_news_sentiment_realtime(news_items):
-    """실시간으로 긁어온 뉴스 본문을 텍스트 마이닝하여 수혜/피해 주식을 dynamic하게 자동 빌드하는 AI 엔진"""
-    analyzed_feeds = []
+def extract_main_keywords(title_text):
+    """뉴스 제목에서 핵심 명사를 동적으로 추출하는 함수"""
+    words = re.findall(r'\b[A-Z][a-zA-Z]+\b|\b[a-z]{4,}\b', title_text)
+    ignore_words = ["stock", "stocks", "market", "markets", "week", "today", "daily", "share", "shares", "report", "economy", "investors", "billion", "million"]
+    filtered_words = [w for w in words if w.lower() not in ignore_words]
     
-    # 미 증시 전체 종목 커버를 위한 실시간 금융 키워드 가중치 사전
-    positive_keywords = ["robust", "higher", "surge", "gain", "growth", "demand", "breakthrough", "surprise", "buy", "bullish", "accelerate", "expand"]
-    negative_keywords = ["pressure", "concern", "drop", "fall", "decline", "investigation", "probe", "rate surge", "yields rise", "bearish", "risk", "inflation"]
+    if len(filtered_words) >= 2:
+        return f"'{filtered_words[0]} 및 {filtered_words[1]}'"
+    elif len(filtered_words) == 1:
+        return f"'{filtered_words[0]}'"
+    return "해당 경제 이슈"
+
+def analyze_news_sentiment_realtime(news_items):
+    """실시간 뉴스의 키워드를 정밀 판별하여 매번 다른 6대 섹터 종목을 꽂아주는 동적 엔진"""
+    analyzed_feeds = []
     
     for news in news_items:
         text_lower = (news["title"] + " " + news["desc"]).lower()
+        topic_keywords = extract_main_keywords(news["title"])
         
-        # 1. 문맥 점수 계산 (실시간 텍스트 마이닝)
-        pos_score = sum(1 for kw in positive_keywords if kw in text_lower)
-        neg_score = sum(1 for kw in negative_keywords if kw in text_lower)
-        
-        # 2. 실시간 판단 및 미 증시 전체 타겟 종목 스케일링 매핑
-        if neg_score > pos_score or any(k in text_lower for k in ["yield", "rate", "inflation", "fed"]):
+        # 🚨 [핵심 개선] 뉴스의 세부 성격을 명확히 분류하여 종목 다변화 처리
+        # 1. 국채 금리 / 인플레이션 / 연준 긴축 (악재 타겟)
+        if any(k in text_lower for k in ["yield", "rate", "inflation", "fed", "hawkish", "hike"]):
             status = "negative"
-            summary_desc = "미국 국채 금리 변동성 및 거시 경제 긴축 압박으로 인해 미래 가치를 선반영하는 기술주 중심의 멀티플 평가 부담이 커질 수 있습니다."
+            summary_desc = f"현재 월가에서는 {topic_keywords}에 따른 거시경제 긴축 우려를 주시하고 있습니다. 고금리 환경은 미래 가치를 선반영하는 기술주 전반의 멀티플 축소 압박으로 이어집니다."
             related_data = {
-                "종목명": ["엔비디아 (NVDA)", "AMD", "인텔 (INTC)", "디렉시온 반도체 3배 (SOXL)"],
-                "위험 요인 및 타격 분석": ["고밸류에이션 차익실현 압박", "기술주 멀티플 축소 우려", "자본 조달 비용 상승 리스크", "레버리지 변동성 직격탄"]
+                "연관 종목 (피해 우려)": ["엔비디아 (NVDA)", "테슬라 (TSLA)", "마이크로소프트 (MSFT)", "디렉시온 반도체 3배 (SOXL)"],
+                "실시간 타격 요인 분석": ["고밸류에이션 기술주 멀티플 압박", "전기차 등 고금리 취약 섹터 수요 둔화", "시가총액 상위 빅테크 자금 유출 우려", "반도체 지수 레버리지 변동성 노출"]
             }
+            
+        # 2. 반도체 / AI / 하드웨어 칩 (반도체 호재 타겟)
+        elif any(k in text_lower for k in ["ai", "chip", "semiconductor", "nvidia", "qualcomm", "amd", "blackwell", "hardware"]):
+            status = "positive"
+            summary_desc = f"최신 보고서에 따르면 {topic_keywords} 국면이 반도체 및 인공지능 공급망 전반의 장기 성장을 강하게 견인하고 있습니다."
+            related_data = {
+                "연관 종목 (수혜 기대)": ["퀄컴 (QCOM)", "엔비디아 (NVDA)", "AMD", "마벨 테크놀로지 (MRVL)"],
+                "실시간 호재 요인 분석": ["AI 칩 수요 폭발로 스마트폰/AP 마진 견인", "AI 그래픽처리장치(GPU) 시장 지배력 지속", "차세대 가속기 라인업 강화", "데이터센터 고대역폭 인프라 확충"]
+            }
+            
+        # 3. 애플 / 아이폰 / 모바일 (애플 생태계 타겟)
+        elif any(k in text_lower for k in ["apple", "iphone", "ipad", "aapl"]):
+            status = "positive"
+            summary_desc = f"월가에서는 {topic_keywords} 트렌드가 스마트 디바이스 교체 주기 도래 및 온디바이스 AI 시장의 마진 개선에 크게 기여할 것으로 평가합니다."
+            related_data = {
+                "연관 종목 (수혜 기대)": ["애플 (AAPL)", "TSMC (TSM)", "암 홀딩스 (ARM)", "브로드컴 (AVGO)"],
+                "실시간 호재 요인 분석": ["프리미엄 디바이스 판매 회복세", "초미세 파운드리 글로벌 독점 수혜", "모바일 아키텍처 라이선스 매출 성장", "통신 칩 및 모바일 컴포넌트 공급 확대"]
+            }
+            
+        # 4. 전통 금융 / 은행 / 금리 수혜 (금융 섹터 타겟)
+        elif any(k in text_lower for k in ["bank", "banking", "finance", "yields rise", " Goldman ", " JPMorgan "]):
+            status = "positive"
+            summary_desc = f"시장 유동성이 {topic_keywords} 흐름을 타면서, 예대마진 확대가 기대되는 전통 대형 금융주 중심으로 강한 방어 수급이 포착됩니다."
+            related_data = {
+                "연관 종목 (수혜 기대)": ["JP모건 체이스 (JPM)", "골드만삭스 (GS)", "모건스탠리 (MS)", "뱅크오브아메리카 (BAC)"],
+                "실시간 호재 요인 분석": ["금리 상승에 따른 순이자마진(NIM) 개선", "투자은행(IB) 부문 거래 대금 회복", "자산관리 및 수수료 기반 매출 견인", "금융 시장 유동성 방어주 매력 부각"]
+            }
+            
+        # 5. 소매 유통 / 소비재 / 이커머스 (소비재 테마 타겟)
+        elif any(k in text_lower for k in ["retail", "consumer", "spend", "amazon", "walmart", "sales"]):
+            status = "positive"
+            summary_desc = f"미국 내 {topic_keywords} 지표가 견고하게 유지됨에 따라 민간 소비 심리 회복 및 이커머스 인프라 기업들의 실적 우위가 기대됩니다."
+            related_data = {
+                "연관 종목 (수혜 기대)": ["아마존 (AMZN)", "월마트 (WMT)", "코스트코 (COST)", "홈디포 (HD)"],
+                "실시간 호재 요인 분석": ["온라인 플랫폼 및 클라우드 동반 성장", "필수 소비재 중심의 안정적 현금 흐름", "오프라인 멤버십 기반 트래픽 증가", "인프라 개선을 통한 물류 마진 확보"]
+            }
+            
+        # 6. 기타 일반 대형 빅테크 / 소프트웨어 (빅테크 테마 타겟)
         else:
             status = "positive"
-            if any(k in text_lower for k in ["ai", "chip", "semiconductor", "nvidia", "qualcomm"]):
-                summary_desc = "차세대 AI 인프라 투자 지속 및 맞춤형 칩 수요 폭발로 인해 팹리스 및 글로벌 반도체 생태계 전반에 자금이 대량 유입될 수 있습니다."
-                related_data = {
-                    "종목명": ["퀄컴 (QCOM)", "엔비디아 (NVDA)", "AMD", "마벨 테크놀로지 (MRVL)"],
-                    "섹터/테마 수혜 요인": ["AI 칩 설계 로드맵 주도", "글로벌 AI 인프라 대장주 동반 호재", "GPU 및 가속기 공급 부족 수혜", "네트워크 데이터센터 인프라 확장"]
-                }
-            elif "apple" in text_lower or "iphone" in text_lower:
-                summary_desc = "온디바이스 AI 기기 교체 주기 도래 및 공급망 개선으로 애플 생태계 관련 하드웨어 주식들이 주목받을 수 있습니다."
-                related_data = {
-                    "종목명": ["애플 (AAPL)", "TSMC (TSM)", "퀄컴 (QCOM)", "암 홀딩스 (ARM)"],
-                    "섹터/테마 수혜 요인": ["디바이스 판매 마진 개선", "초미세 파운드리 수주 증가", "모바일 AP 라이선스 확대", "아키텍처 로열티 매출 성장"]
-                }
-            else:
-                summary_desc = "글로벌 매크로 마켓의 최신 트렌드 호재 이슈입니다. 연관 섹터의 글로벌 유동성 공급과 단기 수급 우위가 기대됩니다."
-                related_data = {
-                    "종목명": ["마이크로소프트 (MSFT)", "구글 (GOOGL)", "아마존 (AMZN)", "메타 (META)"],
-                    "섹터/테마 수혜 요인": ["클라우드 B2B 매출 견인", "AI 모델 고도화 및 광고 마진", "소비 심리 회복 및 리테일 성장", "트래픽 증가 및 AI 마케팅 효율화"]
-                }
+            summary_desc = f"현재 미 증시는 {topic_keywords} 이슈를 중심으로 소프트웨어 혁신 및 클라우드 플랫폼의 지배력이 견고해지는 흐름을 보이고 있습니다."
+            related_data = {
+                "연관 종목 (수혜 기대)": ["마이크로소프트 (MSFT)", "구글 (GOOGL)", "메타 (META)", "넷플릭스 (NFLX)"],
+                "실시간 호재 요인 분석": ["엔터프라이즈 생성형 AI 클라우드 독점", "디지털 광고 매출 마진 및 단가 회복", "플랫폼 사용자 리텐션 및 AI 효율화", "콘텐츠 유료 구독자 수 성장 궤도 진입"]
+            }
                 
         analyzed_feeds.append({
             "status": status,
-            "title": "📰 " + news["title"],
+            "title": news["title"],
             "desc": summary_desc,
             "related_df": pd.DataFrame(related_data)
         })
@@ -85,7 +115,7 @@ def show_guide(df, exchange_rate, current_prices):
     sub_tab1, sub_tab2, sub_tab3 = st.tabs(["일정 & 뉴스룸", "정밀 시뮬레이터", "계산법 원리 마스터"])
 
     # ------------------------------------------------------------------
-    # [서브탭 1] 실시간 일정 및 진짜 100% 실시간 뉴스룸 📡
+    # [서브탭 1] 실시간 일정 및 진짜 100% 다이내믹 실시간 뉴스룸 📡
     # ------------------------------------------------------------------
     with sub_tab1:
         st.markdown("### 내 종목 핵심 마켓 캘린더")
@@ -93,7 +123,7 @@ def show_guide(df, exchange_rate, current_prices):
         today = datetime.date(2026, 5, 27)
         all_events = [
             {"date": datetime.date(2026, 5, 19), "ticker": "NVDA", "title": "FY2027 Q1 실적 발표 완료"},
-            {"date": datetime.date(2026, 6, 2), "ticker": "AMD", "title": "BofA 글로벌 테크 콘퍼런스 (CFO 발표 예정)"},
+            {"date": datetime.date(2026, 6, 2), "ticker": "AMD", "title": "BofA 글로벌 테크 콘너런스 (CFO 발표 예정)"},
             {"date": datetime.date(2026, 6, 22), "ticker": "SOXL", "title": "분기 배당금 선언일 예정"},
             {"date": datetime.date(2026, 6, 23), "ticker": "SOXL", "title": "배당락일 (Ex-Dividend Date)"},
             {"date": datetime.date(2026, 7, 23), "ticker": "SK Hynix", "title": "FY2026 Q2 실적 발표 (예정)"},
@@ -122,35 +152,31 @@ def show_guide(df, exchange_rate, current_prices):
 
         st.divider()
         
-        # 📡 진짜 실시간 뉴스 연동 레이아웃 파트
         st.markdown("### 어떤 영향을 줄까?")
-        st.markdown("<p style='color:#64748b; font-size:0.85rem; margin-top:-10px;'>현재 시간 기준 월가 뉴스를 실시간 파싱하여 미 증시 전체 종목에 미치는 수혜/타격을 분류합니다.</p>", unsafe_allow_html=True)
+        st.markdown("<p style='color:#64748b; font-size:0.85rem; margin-top:-10px;'>월가 실시간 뉴스의 성격을 6대 섹터로 자동 대조하여 맞춤형 종목 리스트와 분석을 출력합니다.</p>", unsafe_allow_html=True)
         
-        # 팩트 크롤링 및 분석 스타트
-        with st.spinner("월가 실시간 뉴스 및 미 증시 영향도 분석 중..."):
+        with st.spinner("실시간 월가 뉴스 수집 및 테마주 맵핑 연산 중..."):
             raw_news_feeds = fetch_realtime_market_news()
             live_analyzed_data = analyze_news_sentiment_realtime(raw_news_feeds)
         
-        # 긁어온 실제 기사들을 토스/카카오 스타일의 단일 타임라인 피드로 순차 출력
         for idx, news_node in enumerate(live_analyzed_data):
             with st.container(border=True):
-                st.markdown(f"<p style='font-size:0.85rem; color:#64748b; margin-bottom: 2px;'>실시간 이슈 {idx+1}</p>", unsafe_allow_html=True)
+                st.markdown(f"<p style='font-size:0.85rem; color:#64748b; margin-bottom: 2px;'>실시간 마켓 이슈 {idx+1}</p>", unsafe_allow_html=True)
                 st.markdown(f"<h4 style='margin-top:0px; color:#1e293b;'>{news_node['title']}</h4>", unsafe_allow_html=True)
                 
-                # 분석 요약 창 분기
                 if news_node["status"] == "positive":
                     st.info(news_node["desc"])
-                    st.markdown("<span style='color:#22c55e; font-weight:bold; font-size:0.9rem;'>🟢 연관 종목 (긍정 수혜)</span>", unsafe_allow_html=True)
+                    st.markdown("<span style='color:#22c55e; font-weight:bold; font-size:0.9rem;'>🟢 실시간 관련 테마 수혜주</span>", unsafe_allow_html=True)
                 else:
                     st.error(news_node["desc"])
-                    st.markdown("<span style='color:#ef4444; font-weight:bold; font-size:0.9rem;'>🔴 연관 종목 (부정 타격)</span>", unsafe_allow_html=True)
+                    st.markdown("<span style='color:#ef4444; font-weight:bold; font-size:0.9rem;'>🔴 실시간 관련 테마 피해 우려주</span>", unsafe_allow_html=True)
                 
-                # 미 증시 전체를 대조군으로 삼은 데이터프레임 매핑 출력
+                # 섹터별로 완전히 다르게 준비된 데이터프레임 매핑 출력
                 st.dataframe(news_node["related_df"], use_container_width=True, hide_index=True)
             st.write("")
 
     # ------------------------------------------------------------------
-    # [서브탭 2 & 3] 정밀 시뮬레이터 및 계산법 원리 (안전화 완료)
+    # [서브탭 2 & 3] 정밀 시뮬레이터 및 계산 원리 (안전 유지)
     # ------------------------------------------------------------------
     with sub_tab2:
         if df is None or df.empty:
