@@ -30,16 +30,22 @@ def load_data():
     except:
         return None
 
+# ✨ 영웅문과 싱크를 맞추기 위한 현재가 추출 함수 (이걸로 교체하세요!)
 def get_current_prices(tickers):
     prices = {}
     for ticker in tickers:
         try:
             stock = yf.Ticker(ticker)
-            todays_data = stock.history(period='1d', prepost=True)
-            if not todays_data.empty:
-                prices[ticker] = todays_data['Close'].iloc[-1]
+            # history 대신 fast_info에서 실시간 마켓 가격을 직접 가져옵니다.
+            fast_info = stock.fast_info
+            now_price = fast_info.get('last_price', None)
+            
+            if now_price is not None:
+                prices[ticker] = now_price
             else:
-                prices[ticker] = stock.info.get('previousClose', 0.0)
+                # 백업용 데이터
+                todays_data = stock.history(period='1d', prepost=True)
+                prices[ticker] = todays_data['Close'].iloc[-1] if not todays_data.empty else 0.0
         except:
             prices[ticker] = 0.0
     return prices
