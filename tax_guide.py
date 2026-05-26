@@ -10,7 +10,6 @@ def show_guide(df, exchange_rate, current_prices):
         st.warning("⚠️ 불러온 엑셀 데이터가 없어 시뮬레이션을 진행할 수 없습니다.")
         return
 
-    # 데이터 사전 가공 (루프 돌며 필요한 기본 정보 수집)
     unique_titles = df['종목명'].unique()
     
     # ------------------------------------------------------------------
@@ -27,17 +26,13 @@ def show_guide(df, exchange_rate, current_prices):
         total_owned_qty = group_sorted['매수수량'].sum()
         live_price = current_prices.get(ticker_code, 0.0)
         
-        # 이동평균 단가 구하기
         total_cost_usd = (group_sorted['매수가'] * group_sorted['매수수량']).sum()
         avg_cost_usd = total_cost_usd / total_owned_qty if total_owned_qty > 0 else 0
-        
-        # 주당 기대 원화 차익
         per_share_gain_krw = (live_price - avg_cost_usd) * exchange_rate
         
         if per_share_gain_krw > 0:
-            # 2,500,000원을 채우기 위해 필요한 주 수 계산
             safe_qty = 2500000 / per_share_gain_krw
-            safe_qty = min(safe_qty, float(total_owned_qty)) # 보유 수량보다 클 순 없음
+            safe_qty = min(safe_qty, float(total_owned_qty))
             safe_eval_krw = safe_qty * live_price * exchange_rate
             zero_tax_rows.append({
                 "종목명": name,
@@ -70,10 +65,8 @@ def show_guide(df, exchange_rate, current_prices):
     with col_sim1:
         sell_qty_input = st.number_input(f"매도할 수량 (보유: {total_owned_qty:,.2f}주)", min_value=0.0, max_value=float(total_owned_qty), value=float(total_owned_qty), step=1.0)
     with col_sim2:
-        # 프리마켓 단가를 기본값으로 장착하여 실전성 향상
         sell_price_input = st.number_input("예상 매도 가격 ($)", min_value=0.0, value=float(live_price), step=0.1)
 
-    # 정밀 세금 연산
     total_cost_usd = (stock_df['매수가'] * stock_df['매수수량']).sum()
     avg_cost_usd = total_cost_usd / total_owned_qty if total_owned_qty > 0 else 0
     ma_gain_krw = (sell_price_input - avg_cost_usd) * sell_qty_input * exchange_rate
@@ -97,7 +90,7 @@ def show_guide(df, exchange_rate, current_prices):
         st.metric(label="📜 선입선출법(FIFO) 적용 시 차익", value=f"₩{int(fifo_gain_krw):,}")
 
     # ------------------------------------------------------------------
-    # ✨ 디테일 4: 환율 변동 스트레스 테스트 시뮬레이터
+    # ✨ 디테일 4: 환율 변동 스트레스 테스트 시뮬레이터 (오타 완전 수정! 🛠️)
     # ------------------------------------------------------------------
     st.markdown("---")
     st.subheader("💵 환율 급변동 스트레스 테스트 (Stress Test)")
@@ -110,7 +103,7 @@ def show_guide(df, exchange_rate, current_prices):
     stress_fifo_total = 0
     
     for name, group in df.groupby('종목명'):
-        g_sorted = group.sort_values('매_수일자')
+        g_sorted = group.sort_values('매수일자') # 👈 원래대로 '매수일자'로 오타 완벽 복구!
         t_code = g_sorted.iloc[0]['코드']
         t_qty = g_sorted['매수수량'].sum()
         c_price = current_prices.get(t_code, 0.0)
@@ -118,7 +111,6 @@ def show_guide(df, exchange_rate, current_prices):
         t_cost_usd = (g_sorted['매수가'] * g_sorted['매수수량']).sum()
         t_cost_krw = g_sorted['매수금액(원)'].sum()
         
-        # 가상 환율 대입 연산
         stress_ma_total += ((c_price * t_qty) - t_cost_usd) * stress_rate
         stress_fifo_total += (c_price * t_qty * stress_rate) - t_cost_krw
         
@@ -143,7 +135,7 @@ def show_guide(df, exchange_rate, current_prices):
             report_rows.append({
                 "종목명": name, "주식코드": ticker_code, "수량": qty,
                 "매수일자": row['매수일자'], "원화취득가액": int(cost_krw),
-                "원화양도가액(예정)": int(sell_rw if 'sell_rw' in locals() else sell_krw), "양도차익(원)": int(gain_krw)
+                "원화양도가액(예정)": int(sell_krw), "양도차익(원)": int(gain_krw)
             })
     
     report_df = pd.DataFrame(report_rows)
