@@ -1,20 +1,19 @@
 import streamlit as st
 import pandas as pd
-import yfinance as yf
 import datetime
-import plotly.express as px  # 시각화 차트용 라이브러리
+import plotly.express as px
 
 def show_guide(df, exchange_rate, current_prices):
-    # 상단 서브 탭 구조
-    sub_tab1, sub_tab2, sub_tab3 = st.tabs(["📅 실시간 일정 & AI 뉴스룸", "✂️ 정밀 매도 시뮬레이터", "🧮 계산법 원리 마스터"])
+    # 확장 서브 탭 3분할
+    sub_tab1, sub_tab2, sub_tab3 = st.tabs(["📅 일정 & 뉴스룸", "✂️ 정밀 시뮬레이터", "🧮 계산법 원리 마스터"])
 
     # ------------------------------------------------------------------
-    # [탭 1] 실시간 일정 & 뉴스룸 (기존 로직 유지)
+    # [서브탭 1] 실시간 일정 & 뉴스룸 (3D화 완료)
     # ------------------------------------------------------------------
     with sub_tab1:
-        st.subheader("🗓️ 내 종목 핵심 마켓 캘린더")
-        today = datetime.date(2026, 5, 27)
+        st.markdown("### <img src='https://fonts.gstatic.com/s/e/notoemoji/latest/1f4c5/512.webp' width='30'> 내 종목 핵심 마켓 캘린더", unsafe_allow_html=True)
         
+        today = datetime.date(2026, 5, 27)
         all_events = [
             {"date": datetime.date(2026, 5, 19), "ticker": "NVDA", "title": "FY2027 Q1 실적 발표 완료 (어닝 서프라이즈! 🎉)"},
             {"date": datetime.date(2026, 6, 2), "ticker": "AMD", "title": "BofA 글로벌 테크 콘퍼런스 (CFO 발표 예정 🎤)"},
@@ -34,7 +33,7 @@ def show_guide(df, exchange_rate, current_prices):
                 for ev in upcoming_events:
                     st.info(f"**[{ev['date'].strftime('%m/%d')}] {ev['ticker']}**\n\n{ev['title']}")
             else:
-                st.write("<small style='color:#64748b;'>2주간 예정된 큰 이벤트가 없습니다.</small>", unsafe_allow_html=True)
+                st.write("<small style='color:#64748b;'>2주간 예정된 큰 이벤트가 없습니다. 평온한 밤입니다. ☕</small>", unsafe_allow_html=True)
                 
         with col_ev2:
             st.markdown("📅 **전체 타임라인**")
@@ -45,7 +44,7 @@ def show_guide(df, exchange_rate, current_prices):
                 st.dataframe(pd.DataFrame(event_rows), use_container_width=True, hide_index=True)
 
         st.divider()
-        st.subheader("📰 AI 기반 포트폴리오 실시간 뉴스룸")
+        st.markdown("### <img src='https://fonts.gstatic.com/s/e/notoemoji/latest/1f4f0/512.webp' width='30'> AI 기반 포트폴리오 실시간 뉴스룸", unsafe_allow_html=True)
         
         news_feeds = [
             {"status": "positive", "title": "엔비디아, 차세대 인공지능 칩 '블랙웰' 출하 가속화... 공급 부족 연말 해소 전망", "ticker": "NVDA", "related": ["SOXL", "SK Hynix"]},
@@ -71,11 +70,15 @@ def show_guide(df, exchange_rate, current_prices):
                     st.markdown(f"<small>🎯 관련주: `{n['ticker']}` " + " ".join([f"`{r}`" for r in n["related"]]) + "</small>", unsafe_allow_html=True)
 
     # ------------------------------------------------------------------
-    # [탭 2] 정밀 매도 시뮬레이터 (기존 로직 유지)
+    # [서브탭 2] 정밀 매도 시뮬레이터 (3D화 완료)
     # ------------------------------------------------------------------
     with sub_tab2:
+        if df is None or df.empty:
+            st.warning("⚠️ 데이터가 없습니다.")
+            return
+
         unique_titles = df['종목명'].unique()
-        st.subheader("🎯 세금 Zero! 연간 기본 공제(250만 원) 맞춤형 익절 가이드")
+        st.markdown("### <img src='https://fonts.gstatic.com/s/e/notoemoji/latest/1f6e1_fe0f/512.webp' width='30'> 연간 기본 공제(250만 원) 안전 익절 가이드", unsafe_allow_html=True)
         
         zero_tax_rows = []
         for name, group in df.groupby('종목명'):
@@ -100,7 +103,7 @@ def show_guide(df, exchange_rate, current_prices):
             st.table(pd.DataFrame(zero_tax_rows))
         
         st.divider()
-        st.subheader("✂️ 특정 종목 조준 매도")
+        st.markdown("### <img src='https://fonts.gstatic.com/s/e/notoemoji/latest/1f3af/512.webp' width='30'> 특정 종목 조준 매도 시뮬레이션", unsafe_allow_html=True)
         selected_stock = st.selectbox("👉 시뮬레이션할 종목 선택", unique_titles, key="stock_sel_guide_new")
         stock_df = df[df['종목명'] == selected_stock].sort_values('매수일자')
         ticker_code = stock_df.iloc[0]['코드']
@@ -135,38 +138,29 @@ def show_guide(df, exchange_rate, current_prices):
             st.metric(label="📜 선입선출법(FIFO) 차익", value=f"₩{int(fifo_gain_krw):,}")
 
     # ------------------------------------------------------------------
-    # ✨ [UI 전면 개편 탭 3] 표와 그래프를 사용한 직관적 마스터 부스
+    # [서브탭 3] 계산법 원리 마스터 (3D화 및 차트 개편 완료)
     # ------------------------------------------------------------------
     with sub_tab3:
-        st.subheader("📊 한눈에 비교하는 세금 계산법 차이")
-        st.markdown("<small style='color:#64748b;'>가상 시나리오의 슬라이더를 움직여 장부상 취득 원가와 최종 차익이 어떻게 변하는지 직관적으로 대조해 보세요.</small>", unsafe_allow_html=True)
+        st.markdown("### <img src='https://fonts.gstatic.com/s/e/notoemoji/latest/1f9e0/512.webp' width='30'> 한눈에 비교하는 세금 계산법 차이 원리", unsafe_allow_html=True)
         
-        # 1. 고정된 가상 거래 내역 레이아웃
         with st.container(border=True):
-            st.markdown("💡 **시뮬레이션 가상 계좌 조건**")
-            st.markdown("* **1차 매수:** 10주를 **$100**에 매수 (원화 환산 원가: ₩1,400,000)\n"
-                        "* **2차 매수:** 10주를 **$200**에 매수 (원화 환산 원가: ₩2,800,000)\n"
+            st.markdown("💡 **시뮬레이션 가상 계좌 조건**\n"
+                        "* 1차 매수: 10주를 **$100**에 매수 (원화 환산 원가: ₩1,400,000)\n"
+                        "* 2차 매수: 10주를 **$200**에 매수 (원화 환산 원가: ₩2,800,000)\n"
                         "* **[종합 평단가]: $150 (총 20주 보유, 총 원가 ₩4,200,000)**")
         
         st.write("")
-        # 슬라이더 바 조정
         test_sell_price = st.slider("🎛️ 가상의 오늘 밤 매도 단가 설정 ($)", min_value=120, max_value=300, value=250, step=10, key="interactive_example_slider")
-        test_qty = 10  # 분할 매수 상황 직관성을 위해 10주 매도 고정
+        test_qty = 10
         
-        # 원화 1400원 기준 연산 가동
         current_rate = 1400.0
         total_sell_amount_krw = test_sell_price * test_qty * current_rate
-        
-        # 이동평균법 (평단 150불 기준 원가)
         ma_cost_krw = 150 * test_qty * current_rate
         ma_gain_krw = total_sell_amount_krw - ma_cost_krw
-        
-        # 선입선출법 (먼저 산 100불짜리 10주가 먼저 나감)
         fifo_cost_krw = 100 * test_qty * current_rate
         fifo_gain_krw = total_sell_amount_krw - fifo_cost_krw
 
-        # ✨ [개선 1] 한눈에 파악하는 데이터 대조 표(Table) 장착
-        st.markdown("### 📋 연산 데이터 대조표 (10주 전량 매도 시)")
+        st.markdown("#### 📋 연산 데이터 대조표 (10주 전량 매도 시)")
         compare_data = {
             "구분 항목": ["총 매도 대금 (원화)", "장부상 취득 원가 (국가 인정)", "최종 계산된 양도차익"],
             "📈 이동평균법 (증권사 앱)": [f"₩{int(total_sell_amount_krw):,}", f"₩{int(ma_cost_krw):,}", f"₩{int(ma_gain_krw):,}"],
@@ -174,8 +168,7 @@ def show_guide(df, exchange_rate, current_prices):
         }
         st.table(pd.DataFrame(compare_data))
 
-        # ✨ [개선 2] 직관성을 200% 올려주는 시각화 바 차트(Chart) 추가
-        st.markdown("### 📊 원가와 실제 차익 비중 비교")
+        st.markdown("#### 📊 원가와 실제 차익 비중 비교")
         chart_rows = [
             {"방식": "이동평균법", "항목": "취득 원가", "금액(원)": ma_cost_krw},
             {"방식": "이동평균법", "항목": "양도차익", "금액(원)": ma_gain_krw},
@@ -184,17 +177,15 @@ def show_guide(df, exchange_rate, current_prices):
         ]
         df_chart = pd.DataFrame(chart_rows)
         fig_compare = px.bar(df_chart, x="방식", y="금액(원)", color="항목", 
-                             color_discrete_map={"취득 원가": "#cbd5e1", "양도차익": "#3b82f6"},
-                             barmart="stack")
+                             color_discrete_map={"취득 원가": "#cbd5e1", "양도차익": "#3b82f6"})
         fig_compare.update_layout(height=350, margin=dict(t=10, b=10, l=10, r=10))
         st.plotly_chart(fig_compare, use_container_width=True)
 
-        # ✨ [개선 3] 글씨 깨짐(Markdown 오류)을 완전히 수정한 텍스트 요약 리포트
-        st.markdown("---")
-        st.markdown("### 💡 최종 리밸런싱 가이드라인 요약")
+        st.divider()
+        st.markdown("#### <img src='https://fonts.gstatic.com/s/e/notoemoji/latest/1f4a1/512.webp' width='25'> 최종 리밸런싱 가이드라인 요약", unsafe_allow_html=True)
         gap = int(abs(fifo_gain_krw - ma_gain_krw))
         
-        st.warning(f"현재 설정하신 가상 매도 단가 ${test_sell_price} 기준으로 연산 시, 국세청 선입선출법 방식의 장부상 차익이 증권사 이동평균법보다 **₩{gap:,}원** 더 크게 잡힙니다.")
+        st.warning(f"현재 설정하신 가상 매도 단가 ${test_sell_price} 기준으로 연산 시, 국세청 선입선출법 방식의 장부상 차익이 증권사 이동평균법보다 ₩{gap:,}원 더 크게 잡힙니다.")
         st.markdown("""
             * **원인 분석:** 선입선출법은 과거에 저렴하게 샀던 **$100짜리 물량**부터 먼저 처리하므로 장부상 원가가 낮게 잡혀 수익(차익)이 튀게 됩니다.
             * **실전 꿀팁:** 증권사 계좌에 찍힌 평단가와 수익률만 보고 무턱대고 익절했다가는 나중에 국세청 양도세 신고 기간에 예상치 못한 세금 고지서를 받을 수 있습니다. 매도 버튼을 누르기 전에 반드시 이 대시보드로 격차를 체크하셔야 안전합니다!
