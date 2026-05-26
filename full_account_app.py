@@ -5,31 +5,26 @@ import os
 import plotly.express as px
 import tax_guide
 
-# 엑셀 파일 이름 지정
 FILE_NAME = "14매수일자별잔고.xls.xlsx"
 
-# 웹페이지 기본 설정 (중앙 집중형 구조 유지)
-st.set_page_config(page_title="해외주식 실시간 통합 절세 대시보드 Pro", page_icon="💰", layout="centered")
+# 웹페이지 기본 설정 (중앙 집중형 구조)
+st.set_page_config(page_title="해외주식 실시간 통합 절세 대시보드 Pro", layout="centered")
 
-# 고급 핀테크 앱 폰트 및 스타일링 (3D 아이콘 크기 제어 포함)
+# 미니멀리즘 스타일링
 st.markdown("""
     <style>
         .block-container { padding-top: 2rem; padding-bottom: 2rem; }
-        h1 { font-weight: 800; font-size: 1.8rem !important; color: #1e293b; margin-top: -10px; }
-        h3 { font-weight: 700; font-size: 1.2rem !important; color: #334155; }
+        h1 { font-weight: 800; font-size: 1.8rem !important; color: #1e293b; }
+        h3 { font-weight: 700; font-size: 1.2rem !important; color: #334155; margin-top: 1.5rem; }
         .stMetric { background-color: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0; }
         div[data-testid="metric-container"] label { font-size: 0.85rem !important; font-weight: 600; color: #64748b; }
         div[data-testid="metric-container"] [data-testid="stMetricValue"] { font-size: 1.4rem !important; font-weight: 700; color: #0f172a; }
-        .icon-3d { margin-bottom: -10px; }
     </style>
 """, unsafe_allow_html=True)
 
-# ✨ [3D 리뉴얼 1] 메인 타이틀 상단에 움직이는 귀여운 3D 돈자루 장착
-st.image("https://fonts.gstatic.com/s/e/notoemoji/latest/1f4b0/512.webp", width=70)
-st.title("해외주식 절세 대시보드")
-st.markdown("<small style='color:#64748b;'>실시간 시세·환율 반영 및 분할 매도 시뮬레이터</small>", unsafe_allow_html=True)
+st.title("해외주식 절세 대시보드 Pro")
+st.markdown("<p style='color:#64748b; margin-top:-10px;'>실시간 시세·환율 반영 및 분할 매도 시뮬레이터</p>", unsafe_allow_html=True)
 
-# 데이터 불러오기 함수
 @st.cache_data
 def load_data():
     if not os.path.exists(FILE_NAME):
@@ -47,7 +42,6 @@ def load_data():
     except:
         return None
 
-# 실시간 주가 추출 엔진
 def get_current_prices(tickers):
     prices = {}
     for ticker in tickers:
@@ -65,7 +59,6 @@ def get_current_prices(tickers):
             prices[ticker] = 0.0
     return prices
 
-# 실시간 환율 엔진
 @st.cache_data(ttl=3600)
 def get_realtime_exchange_rate():
     try:
@@ -78,28 +71,23 @@ def get_realtime_exchange_rate():
 df = load_data()
 
 if df is None:
-    st.error(f"❌ 폴더 내에 '{FILE_NAME}' 파일이 존재하지 않습니다. 파일을 동일한 폴더에 넣어주세요.")
+    st.error("폴더 내에 엑셀 파일이 존재하지 않습니다. 파일을 동일한 폴더에 넣어주세요.")
 else:
     unique_tickers = df['코드'].unique()
-    with st.spinner('🔄 실시간 마켓 데이터 동기화 중...'):
+    with st.spinner('실시간 마켓 데이터 동기화 중...'):
         current_prices = get_current_prices(unique_tickers)
         auto_exchange_rate = get_realtime_exchange_rate()
     
-    # 사이드바 톱니바퀴 3D화
-    st.sidebar.markdown("<img src='https://fonts.gstatic.com/s/e/notoemoji/latest/2699_fe0f/512.webp' width='35' style='margin-bottom:10px;'>", unsafe_allow_html=True)
     st.sidebar.header("시뮬레이션 설정")
-    st.sidebar.markdown("<small style='color:#94a3b8;'>왼쪽 위의 화살표( > ) 버튼으로 창을 접거나 열 수 있습니다.</small>", unsafe_allow_html=True)
-    
     exchange_rate = st.sidebar.number_input(
-        f"💵 적용 환율 (원/$)", 
+        "적용 환율 (원/$)", 
         min_value=1000.0, max_value=2000.0, value=auto_exchange_rate, step=1.0
     )
-    sell_percent = st.sidebar.slider("✂️ 매도 비율 선택 (%)", min_value=1, max_value=100, value=100, step=5)
+    sell_percent = st.sidebar.slider("매도 비율 선택 (%)", min_value=1, max_value=100, value=100, step=5)
     sell_factor = sell_percent / 100.0
-    already_gain = st.sidebar.number_input("🎯 올해 이미 실현한 타 종목 손익 (원)", value=0, step=100000)
+    already_gain = st.sidebar.number_input("올해 이미 실현한 타 종목 손익 (원)", value=0, step=100000)
 
-    # 탭 메뉴 구성
-    tab1, tab2 = st.tabs(["📊 절세 대시보드", "🔍 확장 시뮬레이터"])
+    tab1, tab2 = st.tabs(["절세 대시보드", "확장 시뮬레이터"])
 
     total_dashboard = []
     portfolio_pie_data = []
@@ -156,18 +144,17 @@ else:
     fifo_tax = max(0, ((fifo_total_gain_krw + already_gain) - 2500000) * 0.22)
 
     with tab1:
-        # ✨ [3D 리뉴얼 2] 체크 깃발 3D화
-        st.markdown("<h3><img src='https://fonts.gstatic.com/s/e/notoemoji/latest/1f3c1/512.webp' width='30' class='icon-3d'> 예상 세금 비교 리포트</h3>", unsafe_allow_html=True)
+        st.subheader(f"[{sell_percent}% 매도 기준] 예상 세금 비교 리포트")
         
         st.metric(
-            label="📈 이동평균법 (국내 증권사 기본 기준)", 
+            label="이동평균법 (국내 증권사 기본 기준)", 
             value=f"₩{int(ma_total_gain_krw):,}", 
             delta=f"예상 세금: ₩{int(ma_tax):,}",
             delta_color="inverse"
         )
         st.write("")
         st.metric(
-            label="📜 선입선출법 (FIFO 국세청 신고 기준)", 
+            label="선입선출법 (FIFO 국세청 신고 기준)", 
             value=f"₩{int(fifo_total_gain_krw):,}", 
             delta=f"예상 세금: ₩{int(fifo_tax):,}",
             delta_color="inverse"
@@ -177,15 +164,14 @@ else:
         tax_saved = abs(fifo_tax - ma_tax)
         final_recommend = "이동평균법" if ma_tax < fifo_tax else ("선입선출법" if ma_tax > fifo_tax else "세금 동일")
         st.metric(
-            label="💡 두 방식 최종 선택 시 아낄 수 있는 절세액", 
+            label="두 방식 최종 선택 시 아낄 수 있는 절세액", 
             value=f"₩{int(tax_saved):,}", 
             delta=f"추천 방식: {final_recommend} 선택",
             delta_color="normal"
         )
 
         st.divider()
-        # 원형 파이 차트 아이콘 3D화
-        st.markdown("<h3><img src='https://fonts.gstatic.com/s/e/notoemoji/latest/1f4ca/512.webp' width='30' class='icon-3d'> 내 계좌 자산 비중</h3>", unsafe_allow_html=True)
+        st.subheader("내 계좌 자산 비중")
         df_pie = pd.DataFrame(portfolio_pie_data)
         fig = px.pie(df_pie, values='평가금액', names='종목명', hole=0.5, color_discrete_sequence=px.colors.sequential.Plotly3)
         fig.update_traces(textposition='inside', textinfo='percent+label')
@@ -193,8 +179,7 @@ else:
         st.plotly_chart(fig, use_container_width=True)
 
         st.divider()
-        # 돋보기 아이콘 3D화
-        st.markdown("<h3><img src='https://fonts.gstatic.com/s/e/notoemoji/latest/1f50d/512.webp' width='30' class='icon-3d'> 실시간 종목별 상세 분석</h3>", unsafe_allow_html=True)
+        st.subheader("실시간 종목별 상세 분석")
         df_dashboard = pd.DataFrame(total_dashboard)
         
         def color_roi(val):
