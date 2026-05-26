@@ -2,7 +2,8 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 import os
-import plotly.express as px  # ✨ 이쁜 원형 차트를 위한 라이브러리 추가
+import plotly.express as px
+import tax_guide  # 👈 새로 만든 세금 가이드 파일을 여기서 알아서 불러옵니다!
 
 # 엑셀 파일 이름 지정
 FILE_NAME = "14매수일자별잔고.xls.xlsx"
@@ -76,6 +77,9 @@ else:
     sell_factor = sell_percent / 100.0
     already_gain = st.sidebar.number_input("🎯 올해 이미 실현한 타 종목 수익/손실 (원)", value=0, step=100000)
 
+    # ✨ [조립 완료 1] 여기서 화면에 상단 탭 2개를 만들어 줍니다.
+    tab1, tab2 = st.tabs(["📊 실시간 절세 대시보드", "🔍 세금 연산 로직 가이드"])
+
     total_dashboard = []
     portfolio_pie_data = []
     ma_total_gain_krw = 0
@@ -86,92 +90,4 @@ else:
         ticker_code = group_sorted.iloc[0]['코드']
         total_qty = group_sorted['매수수량'].sum()
         
-        sim_qty = total_qty * sell_factor
-        total_cost_krw = group_sorted['매수금액(원)'].sum()
-        total_cost_usd = (group_sorted['매수가'] * group_sorted['매수수량']).sum()
-        
-        sim_cost_krw = total_cost_krw * sell_factor
-        sim_cost_usd = total_cost_usd * sell_factor
-        
-        now_price_usd = current_prices.get(ticker_code, 0.0)
-        if now_price_usd == 0.0:
-            now_price_usd = group_sorted.iloc[-1]['매수가'] 
-            
-        total_eval_krw = total_qty * now_price_usd * exchange_rate
-        portfolio_pie_data.append({"종목명": name, "평가금액": total_eval_krw})
-            
-        ma_gain_usd = (now_price_usd * sim_qty) - sim_cost_usd
-        ma_gain_krw = ma_gain_usd * exchange_rate
-        fifo_gain_krw = (now_price_usd * sim_qty * exchange_rate) - sim_cost_krw
-
-        roi = ((now_price_usd * total_qty) - total_cost_usd) / total_cost_usd * 100 if total_cost_usd > 0 else 0
-        tax_diff_krw = fifo_gain_krw - ma_gain_krw
-        
-        # 🚨 [추천 방식 판정 조건문 전면 수정]: 차익이 더 '적은' 쪽이 세금 면에서 유리합니다!
-        if ma_gain_krw < fifo_gain_krw:
-            best_method = "이동평균법 유리"
-        elif ma_gain_krw > fifo_gain_krw:
-            best_method = "선입선출법 유리"
-        else:
-            best_method = "동일"
-        
-        total_dashboard.append({
-            "종목명": name,
-            "현재가($)": now_price_usd,
-            "수익률(%)": roi,
-            f"이동평균 차익 ({sell_percent}% 매도)": int(ma_gain_krw),
-            f"선입선출 차익 ({sell_percent}% 매도)": int(fifo_gain_krw),
-            "추천 방식": best_method,
-            "절세 가능 금액(원)": int(abs(tax_diff_krw))
-        })
-        
-        ma_total_gain_krw += ma_gain_krw
-        fifo_total_gain_krw += fifo_gain_krw
-
-    ma_tax = max(0, ((ma_total_gain_krw + already_gain) - 2500000) * 0.22)
-    fifo_tax = max(0, ((fifo_total_gain_krw + already_gain) - 2500000) * 0.22)
-
-    st.subheader(f"🏁 [{sell_percent}% 분할 매도 기준] 예상 세금(양도세) 비교")
-    sum_col1, sum_col2, sum_col3 = st.columns(3)
-    
-    with sum_col1:
-        st.metric(label="📈 이동평균법 적용 시", value=f"선택 차익: ₩{int(ma_total_gain_krw):,}", delta=f"최종 양도세: ₩{int(ma_tax):,}", delta_color="inverse")
-    with sum_col2:
-        st.metric(label="📜 선입선출법(FIFO) 적용 시", value=f"선택 차익: ₩{int(fifo_total_gain_krw):,}", delta=f"최종 양도세: ₩{int(fifo_tax):,}", delta_color="inverse")
-    with sum_col3:
-        tax_saved = abs(fifo_tax - ma_tax)
-        final_recommend = "이동평균법" if ma_tax < fifo_tax else ("선입선출법" if ma_tax > fifo_tax else "세금 동일")
-        st.metric(label="💡 최종 선택 시 절세 가능한 세금", value=f"₩{int(tax_saved):,}", delta=f"추천: {final_recommend}")
-
-    st.divider()
-
-    # ✨ [디테일 변경]: 한눈에 쏙 들어오는 도넛 모양 원형 차트 장착
-    st.subheader("📊 내 계좌 자산 비중 (Portfolio Allocation)")
-    df_pie = pd.DataFrame(portfolio_pie_data)
-    
-    fig = px.pie(df_pie, values='평가금액', names='종목명', hole=0.4, 
-                 color_discrete_sequence=px.colors.sequential.RdBu)
-    fig.update_traces(textposition='inside', textinfo='percent+label')
-    fig.update_layout(margin=dict(t=10, b=10, l=10, r=10), showlegend=True)
-    st.plotly_chart(fig, use_container_width=True)
-
-    st.divider()
-
-    st.subheader(f"🔍 실시간 종목별 상세 분석 ({sell_percent}% 매도 시뮬레이션)")
-    df_dashboard = pd.DataFrame(total_dashboard)
-    
-    def color_roi(val):
-        color = '#ef4444' if val > 0 else ('#3b82f6' if val < 0 else '#ffffff')
-        return f'color: {color}; font-weight: bold;'
-
-    styled_df = df_dashboard.style\
-        .format({
-            "현재가($)": "${:,.2f}",
-            "수익률(%)": "{:+.2f}%",
-            f"이동평균 차익 ({sell_percent}% 매도)": "{:,}원",
-            f"선입선출 차익 ({sell_percent}% 매도)": "{:,}원",
-            "절세 가능 금액(원)": "{:,}원"
-        })\
-        .map(color_roi, subset=["수익률(%)"])
-
-    st.dataframe(styled_df, use_container_width=True, hide_index=True)
+        sim_qty = total
