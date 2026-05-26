@@ -3,16 +3,28 @@ import pandas as pd
 import yfinance as yf
 import os
 import plotly.express as px
-import tax_guide  # 새로 만든 세금 가이드 파일을 불러옵니다
+import tax_guide
 
 # 엑셀 파일 이름 지정
 FILE_NAME = "14매수일자별잔고.xls.xlsx"
 
-# 웹페이지 기본 설정
-st.set_page_config(page_title="해외주식 실시간 통합 절세 대시보드 Pro", page_icon="💰", layout="wide")
+# ✨ [UI 개선 1] layout을 "centered"로 변경하여 넙데데함을 잡고 정갈하게 중앙 집중화합니다.
+st.set_page_config(page_title="해외주식 실시간 통합 절세 대시보드 Pro", page_icon="💰", layout="centered")
 
-st.title("💰 해외주식 실시간 통합 절세 대시보드 Pro")
-st.markdown("실시간 시세와 환율을 반영하여, **분할 매도 비율** 및 **올해 기실현 손익**에 따른 이동평균법 vs 선입선출법(FIFO) 세금을 비교합니다.")
+# 카카오톡이나 핀테크 앱 느낌의 깔끔한 폰트 및 스타일 부여
+st.markdown("""
+    <style>
+        .block-container { padding-top: 2rem; padding-bottom: 2rem; }
+        h1 { font-weight: 800; font-size: 1.8rem !important; color: #1e293b; }
+        h3 { font-weight: 700; font-size: 1.2rem !important; color: #334155; }
+        .stMetric { background-color: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0; }
+        div[data-testid="metric-container"] label { font-size: 0.85rem !important; font-weight: 600; color: #64748b; }
+        div[data-testid="metric-container"] [data-testid="stMetricValue"] { font-size: 1.4rem !important; font-weight: 700; color: #0f172a; }
+    </style>
+""", unsafe_allow_html=True)
+
+st.title("💰 해외주식 절세 대시보드 Pro")
+st.markdown("<small style='color:#64748b;'>실시간 시세·환율 반영 및 분할 매도 시뮬레이터</small>", unsafe_allow_html=True)
 
 # 데이터 불러오기 함수
 @st.cache_data
@@ -32,14 +44,17 @@ def load_data():
     except:
         return None
 
-# 실시간 주가 추출 함수
+# 프리마켓 대응 실시간 주가 추출 엔진
 def get_current_prices(tickers):
     prices = {}
     for ticker in tickers:
         try:
             stock = yf.Ticker(ticker)
             todays_data = stock.history(period='1d', prepost=True)
-            if not todays_data.empty:
+            fast_info_price = stock.fast_info.get('last_price', None)
+            if fast_info_price is not None and fast_info_price > 0:
+                prices[ticker] = fast_info_price
+            elif not todays_data.empty:
                 prices[ticker] = todays_data['Close'].iloc[-1]
             else:
                 prices[ticker] = stock.info.get('previousClose', 0.0)
@@ -63,22 +78,24 @@ if df is None:
     st.error(f"❌ 폴더 내에 '{FILE_NAME}' 파일이 존재하지 않습니다. 파일을 동일한 폴더에 넣어주세요.")
 else:
     unique_tickers = df['코드'].unique()
-    with st.spinner('🔄 야후 파이낸스에서 실시간 마켓 시세 및 환율을 동기화하는 중...'):
+    with st.spinner('🔄 실시간 마켓 데이터 동기화 중...'):
         current_prices = get_current_prices(unique_tickers)
         auto_exchange_rate = get_realtime_exchange_rate()
     
+    # ✨ [UI 개선 2] 사이드바 설정창 가시성 확보 및 정돈
     st.sidebar.header("⚙️ 시뮬레이션 설정")
+    st.sidebar.markdown("<small style='color:#94a3b8;'>왼쪽 위의 화살표( > ) 버튼으로 창을 접거나 열 수 있습니다.</small>", unsafe_allow_html=True)
+    
     exchange_rate = st.sidebar.number_input(
-        f"💵 적용 환율 (원/$) [현재 실시간: ₩{auto_exchange_rate}]", 
+        f"💵 적용 환율 (원/$)", 
         min_value=1000.0, max_value=2000.0, value=auto_exchange_rate, step=1.0
     )
-    
     sell_percent = st.sidebar.slider("✂️ 매도 비율 선택 (%)", min_value=1, max_value=100, value=100, step=5)
     sell_factor = sell_percent / 100.0
-    already_gain = st.sidebar.number_input("🎯 올해 이미 실현한 타 종목 수익/손실 (원)", value=0, step=100000)
+    already_gain = st.sidebar.number_input("🎯 올해 이미 실현한 타 종목 손익 (원)", value=0, step=100000)
 
-    # 상단 탭 2개 생성
-    tab1, tab2 = st.tabs(["📊 실시간 절세 대시보드", "🔍 세금 연산 로직 가이드"])
+    # 상단 탭 스위처 생성
+    tab1, tab2 = st.tabs(["📊 절세 대시보드", "🔍 확장 시뮬레이터"])
 
     total_dashboard = []
     portfolio_pie_data = []
@@ -90,7 +107,6 @@ else:
         ticker_code = group_sorted.iloc[0]['코드']
         total_qty = group_sorted['매수수량'].sum()
         
-        # 🚨 에러가 났던 문제의 93번째 줄 파트 (정상 복구 완료)
         sim_qty = total_qty * sell_factor
         total_cost_krw = group_sorted['매수금액(원)'].sum()
         total_cost_usd = (group_sorted['매수가'] * group_sorted['매수수량']).sum()
@@ -123,10 +139,10 @@ else:
             "종목명": name,
             "현재가($)": now_price_usd,
             "수익률(%)": roi,
-            f"이동평균 차익 ({sell_percent}% 매도)": int(ma_gain_krw),
-            f"선입선출 차익 ({sell_percent}% 매도)": int(fifo_gain_krw),
+            f"이동평균 차익 ({sell_percent}%)": int(ma_gain_krw),
+            f"선입선출 차익 ({sell_percent}%)": int(fifo_gain_krw),
             "추천 방식": best_method,
-            "절세 가능 금액(원)": int(abs(tax_diff_krw))
+            "절세 금액": int(abs(tax_diff_krw))
         })
         
         ma_total_gain_krw += ma_gain_krw
@@ -135,70 +151,63 @@ else:
     ma_tax = max(0, ((ma_total_gain_krw + already_gain) - 2500000) * 0.22)
     fifo_tax = max(0, ((fifo_total_gain_krw + already_gain) - 2500000) * 0.22)
 
-    # 1번 탭 구역 내용물
     with tab1:
-        st.subheader(f"🏁 [{sell_percent}% 분할 매도 기준] 예상 세금(양도세) 비교")
-        sum_col1, sum_col2, sum_col3 = st.columns(3)
+        st.subheader(f"🏁 [{sell_percent}% 매도 기준] 예상 세금 비교")
         
-        # 어느 쪽이 유리한지 비교 데이터 생성 (낮을수록 유리)
-        ma_delta = f"₩{int(ma_tax):,} 부과 (유리 👍)" if ma_total_gain_krw <= fifo_total_gain_krw else f"₩{int(ma_tax):,} 부과"
-        fifo_delta = f"₩{int(fifo_tax):,} 부과 (유리 👍)" if fifo_total_gain_krw < ma_total_gain_krw else f"₩{int(fifo_tax):,} 부과"
+        # ✨ [UI 개선 3] 모바일에서 3칸 쪼개지면 글씨가 깨지므로 columns 구조를 세로 레이아웃 형태로 변환 감싸기 유도
+        st.metric(
+            label="📈 이동평균법 (국내 증권사 기본 기준)", 
+            value=f"₩{int(ma_total_gain_krw):,}", 
+            delta=f"예상 세금: ₩{int(ma_tax):,}",
+            delta_color="inverse"
+        )
+        st.write("")
+        st.metric(
+            label="📜 선입선출법 (FIFO 국세청 신고 기준)", 
+            value=f"₩{int(fifo_total_gain_krw):,}", 
+            delta=f"예상 세금: ₩{int(fifo_tax):,}",
+            delta_color="inverse"
+        )
+        st.write("")
         
-        with sum_col1:
-            st.metric(
-                label="📈 이동평균법 (국내 증권사 기준)", 
-                value=f"₩{int(ma_total_gain_krw):,}", 
-                delta="세금 부과 대상 이익 (낮을수록 유리)",
-                delta_color="off" # 회색으로 차분하게 처리하여 오해 방지
-            )
-            st.caption(f"🚨 예상 납부 세금: **₩{int(ma_tax):,}**")
-            
-        with sum_col2:
-            st.metric(
-                label="📜 선입선출법 (국세청 신고 기준)", 
-                value=f"₩{int(fifo_total_gain_krw):,}", 
-                delta="세금 부과 대상 이익 (낮을수록 유리)",
-                delta_color="off"
-            )
-            st.caption(f"🚨 예상 납부 세금: **₩{int(fifo_tax):,}**")
-            
-        with sum_col3:
-            tax_saved = abs(fifo_tax - ma_tax)
-            final_recommend = "이동평균법" if ma_tax < fifo_tax else ("선입선출법" if ma_tax > fifo_tax else "세금 동일")
-            
-            st.metric(
-                label="💡 두 방식 비교 시 절세 가능한 세금 액수", 
-                value=f"₩{int(tax_saved):,}", 
-                delta=f"추천 방식: {final_recommend} 선택",
-                delta_color="normal" # 절세 금액은 클수록 좋으므로 정상 초록색 활성화
-            )
+        tax_saved = abs(fifo_tax - ma_tax)
+        final_recommend = "이동평균법" if ma_tax < fifo_tax else ("선입선출법" if ma_tax > fifo_tax else "세금 동일")
+        st.metric(
+            label="💡 최종 선택 시 절세 가능한 세금", 
+            value=f"₩{int(tax_saved):,}", 
+            delta=f"추천 방식: {final_recommend} 선택",
+            delta_color="normal"
+        )
 
         st.divider()
-        st.subheader("📊 내 계좌 자산 비중 (Portfolio Allocation)")
+        st.subheader("📊 내 계좌 자산 비중")
         df_pie = pd.DataFrame(portfolio_pie_data)
-        fig = px.pie(df_pie, values='평가금액', names='종목명', hole=0.4, color_discrete_sequence=px.colors.sequential.RdBu)
+        fig = px.pie(df_pie, values='평가금액', names='종목명', hole=0.5, color_discrete_sequence=px.colors.sequential.Plotly3)
         fig.update_traces(textposition='inside', textinfo='percent+label')
+        fig.update_layout(showlegend=False, margin=dict(t=10, b=10, l=10, r=10))
         st.plotly_chart(fig, use_container_width=True)
 
         st.divider()
-        st.subheader(f"🔍 실시간 종목별 상세 분석 ({sell_percent}% 매도 시뮬레이션)")
+        st.subheader("🔍 실시간 종목별 상세 분석")
         df_dashboard = pd.DataFrame(total_dashboard)
         
         def color_roi(val):
-            color = '#ef4444' if val > 0 else ('#3b82f6' if val < 0 else '#ffffff')
+            color = '#ef4444' if val > 0 else ('#3b82f6' if val < 0 else '#64748b')
             return f'color: {color}; font-weight: bold;'
 
         styled_df = df_dashboard.style\
             .format({
                 "현재가($)": "${:,.2f}",
                 "수익률(%)": "{:+.2f}%",
-                f"이동평균 차익 ({sell_percent}% 매도)": "{:,}원",
-                f"선입선출 차익 ({sell_percent}% 매도)": "{:,}원",
-                "절세 가능 금액(원)": "{:,}원"
+                f"이동평균 차익 ({sell_percent}%)": "{:,}원",
+                f"선입선출 차익 ({sell_percent}%)": "{:,}원",
+                "절세 금액": "{:,}원"
             })\
             .map(color_roi, subset=["수익률(%)"])
+        
+        # 모바일 가독성을 위해 넓은 테이블 뷰 지원
         st.dataframe(styled_df, use_container_width=True, hide_index=True)
 
-    # 2번 탭 구역 내용물
     with tab2:
-        tax_guide.show_guide()
+        # 분리된 파일 호출
+        tax_guide.show_guide(df, exchange_rate, current_prices)
