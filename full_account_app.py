@@ -1,180 +1,43 @@
-import streamlit as st
-import pandas as pd
-import yfinance as yf
-import os
-import plotly.express as px
-import tax_guide  # 새로 만든 세금 가이드 파일을 불러옵니다
+import streamlit as st  # 👈 에러를 해결하기 위한 절대 필수 선언!
 
-# 엑셀 파일 이름 지정
-FILE_NAME = "14매수일자별잔고.xls.xlsx"
-
-# 웹페이지 기본 설정
-st.set_page_config(page_title="해외주식 실시간 통합 절세 대시보드 Pro", page_icon="💰", layout="wide")
-
-st.title("💰 해외주식 실시간 통합 절세 대시보드 Pro")
-st.markdown("실시간 시세와 환율을 반영하여, **분할 매도 비율** 및 **올해 기실현 손익**에 따른 이동평균법 vs 선입선출법(FIFO) 세금을 비교합니다.")
-
-# 데이터 불러오기 함수
-@st.cache_data
-def load_data():
-    if not os.path.exists(FILE_NAME):
-        return None
-    try:
-        df = pd.read_csv(FILE_NAME, skiprows=3) if FILE_NAME.endswith('.csv') else pd.read_excel(FILE_NAME, skiprows=3)
-        df['종목명'] = df['종목명'].str.strip()
-        df['코드'] = df['코드'].str.strip()
-        df['매수수량'] = pd.to_numeric(df['매수수량'], errors='coerce')
-        df['매수가'] = pd.to_numeric(df['매수가'], errors='coerce')
-        df['매수금액'] = pd.to_numeric(df['매수금액'], errors='coerce')
-        df['매수금액(원)'] = pd.to_numeric(df['매수금액(원)'], errors='coerce')
-        df = df.dropna(subset=['종목명', '매수수량', '매수가', '코드'])
-        return df
-    except:
-        return None
-
-# 실시간 주가 추출 함수
-def get_current_prices(tickers):
-    prices = {}
-    for ticker in tickers:
-        try:
-            stock = yf.Ticker(ticker)
-            todays_data = stock.history(period='1d', prepost=True)
-            if not todays_data.empty:
-                prices[ticker] = todays_data['Close'].iloc[-1]
-            else:
-                prices[ticker] = stock.info.get('previousClose', 0.0)
-        except:
-            prices[ticker] = 0.0
-    return prices
-
-# 실시간 원/달러 환율 가져오기 함수
-@st.cache_data(ttl=3600)
-def get_realtime_exchange_rate():
-    try:
-        usd_krw = yf.Ticker("KRW=X")
-        rate = usd_krw.history(period="1d")['Close'].iloc[-1]
-        return round(rate, 2)
-    except:
-        return 1400.0
-
-df = load_data()
-
-if df is None:
-    st.error(f"❌ 폴더 내에 '{FILE_NAME}' 파일이 존재하지 않습니다. 파일을 동일한 폴더에 넣어주세요.")
-else:
-    unique_tickers = df['코드'].unique()
-    with st.spinner('🔄 야후 파이낸스에서 실시간 마켓 시세 및 환율을 동기화하는 중...'):
-        current_prices = get_current_prices(unique_tickers)
-        auto_exchange_rate = get_realtime_exchange_rate()
+def show_guide():
+    st.header("🧮 대시보드 내부 연산 엔진 공식 및 대조 가이드")
+    st.markdown("유저님이 엑셀 데이터 및 영웅문 실시간 잔고와 직접 크로스체크 하실 수 있도록 설계된 백엔드 로직 명세입니다.")
     
-    st.sidebar.header("⚙️ 시뮬레이션 설정")
-    exchange_rate = st.sidebar.number_input(
-        f"💵 적용 환율 (원/$) [현재 실시간: ₩{auto_exchange_rate}]", 
-        min_value=1000.0, max_value=2000.0, value=auto_exchange_rate, step=1.0
-    )
+    st.markdown("---")
     
-    sell_percent = st.sidebar.slider("✂️ 매도 비율 선택 (%)", min_value=1, max_value=100, value=100, step=5)
-    sell_factor = sell_percent / 100.0
-    already_gain = st.sidebar.number_input("🎯 올해 이미 실현한 타 종목 수익/손실 (원)", value=0, step=100000)
-
-    # 상단 탭 2개 생성
-    tab1, tab2 = st.tabs(["📊 실시간 절세 대시보드", "🔍 세금 연산 로직 가이드"])
-
-    total_dashboard = []
-    portfolio_pie_data = []
-    ma_total_gain_krw = 0
-    fifo_total_gain_krw = 0
-
-    for name, group in df.groupby('종목명'):
-        group_sorted = group.sort_values('매수일자')
-        ticker_code = group_sorted.iloc[0]['코드']
-        total_qty = group_sorted['매수수량'].sum()
+    st.subheader("1️⃣ 주당 취득가액 산정법의 차이 (달러 vs 원화)")
+    col_logic1, col_logic2 = st.columns(2)
+    
+    with col_logic1:
+        st.info("### 📈 이동평균법 (국내 증권사 기본 기준)\n"
+                "* **개념:** 종목의 총 매수 대금(달러)을 총 매수 수량으로 나누어 주당 평균 단가를 구합니다.\n"
+                "* **달러 차익 공식:**\n"
+                "$$Price_{달러차익} = (현재가_{\\$} - 주당\\,평균\\,매수가_{\\$}) \\times 매도\\,수량$$"
+                "\n\n* **원화 환산:** 위에서 구한 달러 차익에 사이드바에 설정된 **[적용 환율]**을 직접 곱합니다.")
         
-        # 🚨 에러가 났던 문제의 93번째 줄 파트 (정상 복구 완료)
-        sim_qty = total_qty * sell_factor
-        total_cost_krw = group_sorted['매수금액(원)'].sum()
-        total_cost_usd = (group_sorted['매수가'] * group_sorted['매수수량']).sum()
-        
-        sim_cost_krw = total_cost_krw * sell_factor
-        sim_cost_usd = total_cost_usd * sell_factor
-        
-        now_price_usd = current_prices.get(ticker_code, 0.0)
-        if now_price_usd == 0.0:
-            now_price_usd = group_sorted.iloc[-1]['매수가'] 
-            
-        total_eval_krw = total_qty * now_price_usd * exchange_rate
-        portfolio_pie_data.append({"종목명": name, "평가금액": total_eval_krw})
-            
-        ma_gain_usd = (now_price_usd * sim_qty) - sim_cost_usd
-        ma_gain_krw = ma_gain_usd * exchange_rate
-        fifo_gain_krw = (now_price_usd * sim_qty * exchange_rate) - sim_cost_krw
+    with col_logic2:
+        st.success("### 📜 선입선출법 (FIFO - 국세청 세무 신고 기준)\n"
+                   "* **개념:** 날짜별로 매수한 기록을 그대로 누적한 뒤, **먼저 산 주식을 먼저 판 것**으로 간주합니다.\n"
+                   "* **특이사항:** 대한민국 세법상 선입선출법은 달러가 아니라 **'매수 당시 결제일 환율로 환산된 원화 취득가액'**을 기준으로 차익을 직접 뺍니다.\n"
+                   "* **원화 차익 공식:**\n"
+                   "$$Gain_{원화차익} = (현재가_{\\$} \\times 매도\\,수량 \\times 적용\\,환율) - 매수\\,당시\\,실제\\,원화\\,매수금액$$")
+    
+    st.markdown("---")
+    
+    st.subheader("2️⃣ 최종 양도소득세 연산 흐름 (1원 단위 추적용)")
+    st.warning("대시보드 상단의 메인 카드는 아래의 국가 세법 순서 그대로 컴퓨터가 연산합니다.")
+    
+    st.code("""
+# 1단계: 각 종목별 원화 차익을 전부 더해 계좌 총손익을 구합니다 (손익통산)
+계좌_총_양도차익 = 종목A_차익 + 종목B_차익 + 종목C_차익...
 
-        roi = ((now_price_usd * total_qty) - total_cost_usd) / total_cost_usd * 100 if total_cost_usd > 0 else 0
-        tax_diff_krw = fifo_gain_krw - ma_gain_krw
-        
-        if ma_gain_krw < fifo_gain_krw:
-            best_method = "이동평균법 유리"
-        elif ma_gain_krw > fifo_gain_krw:
-            best_method = "선입선출법 유리"
-        else:
-            best_method = "동일"
-        
-        total_dashboard.append({
-            "종목명": name,
-            "현재가($)": now_price_usd,
-            "수익률(%)": roi,
-            f"이동평균 차익 ({sell_percent}% 매도)": int(ma_gain_krw),
-            f"선입선출 차익 ({sell_percent}% 매도)": int(fifo_gain_krw),
-            "추천 방식": best_method,
-            "절세 가능 금액(원)": int(abs(tax_diff_krw))
-        })
-        
-        ma_total_gain_krw += ma_gain_krw
-        fifo_total_gain_krw += fifo_gain_krw
+# 2단계: 사이드바에 입력한 올해 이미 실현한 손익이 있다면 합산합니다
+최종_통산_손익 = 계좌_총_양도차익 + 사이드바_기실현_손익
 
-    ma_tax = max(0, ((ma_total_gain_krw + already_gain) - 2500000) * 0.22)
-    fifo_tax = max(0, ((fifo_total_gain_krw + already_gain) - 2500000) * 0.22)
+# 3단계: 인당 연간 인적 공제 250만 원을 뺍니다 (과세표준 산정)
+과세표준 = 최종_통산_손익 - 2,500,000 원 (단, 과세표준이 0보다 작으면 0원으로 처리)
 
-    # 1번 탭 구역 내용물
-    with tab1:
-        st.subheader(f"🏁 [{sell_percent}% 분할 매도 기준] 예상 세금(양도세) 비교")
-        sum_col1, sum_col2, sum_col3 = st.columns(3)
-        
-        with sum_col1:
-            st.metric(label="📈 이동평균법 적용 시", value=f"선택 차익: ₩{int(ma_total_gain_krw):,}", delta=f"최종 양도세: ₩{int(ma_tax):,}", delta_color="inverse")
-        with sum_col2:
-            st.metric(label="📜 선입선출법(FIFO) 적용 시", value=f"선택 차익: ₩{int(fifo_total_gain_krw):,}", delta=f"최종 양도세: ₩{int(fifo_tax):,}", delta_color="inverse")
-        with sum_col3:
-            tax_saved = abs(fifo_tax - ma_tax)
-            final_recommend = "이동평균법" if ma_tax < fifo_tax else ("선입선출법" if ma_tax > fifo_tax else "세금 동일")
-            st.metric(label="💡 최종 선택 시 절세 가능한 세금", value=f"₩{int(tax_saved):,}", delta=f"추천: {final_recommend}")
-
-        st.divider()
-        st.subheader("📊 내 계좌 자산 비중 (Portfolio Allocation)")
-        df_pie = pd.DataFrame(portfolio_pie_data)
-        fig = px.pie(df_pie, values='평가금액', names='종목명', hole=0.4, color_discrete_sequence=px.colors.sequential.RdBu)
-        fig.update_traces(textposition='inside', textinfo='percent+label')
-        st.plotly_chart(fig, use_container_width=True)
-
-        st.divider()
-        st.subheader(f"🔍 실시간 종목별 상세 분석 ({sell_percent}% 매도 시뮬레이션)")
-        df_dashboard = pd.DataFrame(total_dashboard)
-        
-        def color_roi(val):
-            color = '#ef4444' if val > 0 else ('#3b82f6' if val < 0 else '#ffffff')
-            return f'color: {color}; font-weight: bold;'
-
-        styled_df = df_dashboard.style\
-            .format({
-                "현재가($)": "${:,.2f}",
-                "수익률(%)": "{:+.2f}%",
-                f"이동평균 차익 ({sell_percent}% 매도)": "{:,}원",
-                f"선입선출 차익 ({sell_percent}% 매도)": "{:,}원",
-                "절세 가능 금액(원)": "{:,}원"
-            })\
-            .map(color_roi, subset=["수익률(%)"])
-        st.dataframe(styled_df, use_container_width=True, hide_index=True)
-
-    # 2번 탭 구역 내용물
-    with tab2:
-        tax_guide.show_guide()
+# 4단계: 대한민국 양도소득세율 22%를 곱하여 최종 세금을 확정합니다
+최종_납부_세금 = 과세표준 * 0.22
+    """, language="python")
