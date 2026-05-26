@@ -140,14 +140,38 @@ else:
         st.subheader(f"🏁 [{sell_percent}% 분할 매도 기준] 예상 세금(양도세) 비교")
         sum_col1, sum_col2, sum_col3 = st.columns(3)
         
+        # 어느 쪽이 유리한지 비교 데이터 생성 (낮을수록 유리)
+        ma_delta = f"₩{int(ma_tax):,} 부과 (유리 👍)" if ma_total_gain_krw <= fifo_total_gain_krw else f"₩{int(ma_tax):,} 부과"
+        fifo_delta = f"₩{int(fifo_tax):,} 부과 (유리 👍)" if fifo_total_gain_krw < ma_total_gain_krw else f"₩{int(fifo_tax):,} 부과"
+        
         with sum_col1:
-            st.metric(label="📈 이동평균법 적용 시", value=f"선택 차익: ₩{int(ma_total_gain_krw):,}", delta=f"최종 양도세: ₩{int(ma_tax):,}", delta_color="inverse")
+            st.metric(
+                label="📈 이동평균법 (국내 증권사 기준)", 
+                value=f"₩{int(ma_total_gain_krw):,}", 
+                delta="세금 부과 대상 이익 (낮을수록 유리)",
+                delta_color="off" # 회색으로 차분하게 처리하여 오해 방지
+            )
+            st.caption(f"🚨 예상 납부 세금: **₩{int(ma_tax):,}**")
+            
         with sum_col2:
-            st.metric(label="📜 선입선출법(FIFO) 적용 시", value=f"선택 차익: ₩{int(fifo_total_gain_krw):,}", delta=f"최종 양도세: ₩{int(fifo_tax):,}", delta_color="inverse")
+            st.metric(
+                label="📜 선입선출법 (국세청 신고 기준)", 
+                value=f"₩{int(fifo_total_gain_krw):,}", 
+                delta="세금 부과 대상 이익 (낮을수록 유리)",
+                delta_color="off"
+            )
+            st.caption(f"🚨 예상 납부 세금: **₩{int(fifo_tax):,}**")
+            
         with sum_col3:
             tax_saved = abs(fifo_tax - ma_tax)
             final_recommend = "이동평균법" if ma_tax < fifo_tax else ("선입선출법" if ma_tax > fifo_tax else "세금 동일")
-            st.metric(label="💡 최종 선택 시 절세 가능한 세금", value=f"₩{int(tax_saved):,}", delta=f"추천: {final_recommend}")
+            
+            st.metric(
+                label="💡 두 방식 비교 시 절세 가능한 세금 액수", 
+                value=f"₩{int(tax_saved):,}", 
+                delta=f"추천 방식: {final_recommend} 선택",
+                delta_color="normal" # 절세 금액은 클수록 좋으므로 정상 초록색 활성화
+            )
 
         st.divider()
         st.subheader("📊 내 계좌 자산 비중 (Portfolio Allocation)")
