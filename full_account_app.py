@@ -30,23 +30,27 @@ def load_data():
     except:
         return None
 
-# ✨ 영웅문과 싱크를 맞추기 위한 현재가 추출 함수 (이걸로 교체하세요!)
+# ✨ 야후 파이낸스에서 가장 확실하게 현재가를 긁어오는 끝판왕 함수
 def get_current_prices(tickers):
     prices = {}
     for ticker in tickers:
         try:
             stock = yf.Ticker(ticker)
-            # history 대신 fast_info에서 실시간 마켓 가격을 직접 가져옵니다.
-            fast_info = stock.fast_info
-            now_price = fast_info.get('last_price', None)
             
-            if now_price is not None:
-                prices[ticker] = now_price
+            # 1단계: 가장 직관적이고 확실한 실시간 가격 긁어오기 (기본 history 엔진)
+            # prepost=True를 넣어 프리마켓/애프터마켓 가격까지 강제로 추적합니다.
+            todays_data = stock.history(period='1d', prepost=True)
+            
+            if not todays_data.empty:
+                # 가장 최신 행의 종가(Close)를 가져옵니다. 
+                # 장중이나 프리마켓에는 이 값이 실시간 현재가가 됩니다.
+                prices[ticker] = todays_data['Close'].iloc[-1]
             else:
-                # 백업용 데이터
-                todays_data = stock.history(period='1d', prepost=True)
-                prices[ticker] = todays_data['Close'].iloc[-1] if not todays_data.empty else 0.0
+                # 2단계: 만약 history가 비어있다면 info에서 최신 마켓 가격을 다이렉트로 찔러넣기
+                info = stock.info
+                prices[ticker] = info.get('currentPrice', info.get('previousClose', 0.0))
         except:
+            # 3단계: 에러 발생 시 안전하게 0원으로 처리
             prices[ticker] = 0.0
     return prices
 
