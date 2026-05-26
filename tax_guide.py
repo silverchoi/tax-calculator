@@ -7,7 +7,7 @@ def show_guide(df, exchange_rate, current_prices):
     sub_tab1, sub_tab2, sub_tab3 = st.tabs(["일정 & 뉴스룸", "정밀 시뮬레이터", "계산법 원리 마스터"])
 
     # ------------------------------------------------------------------
-    # [서브탭 1] 실시간 일정 & 뉴스룸
+    # [서브탭 1] 실시간 일정 & 시장 뉴스룸 (은비 님 기획안 반영 버전 🚀)
     # ------------------------------------------------------------------
     with sub_tab1:
         st.markdown("### 내 종목 핵심 마켓 캘린더")
@@ -43,33 +43,41 @@ def show_guide(df, exchange_rate, current_prices):
                 st.dataframe(pd.DataFrame(event_rows), use_container_width=True, hide_index=True)
 
         st.divider()
-        st.markdown("### AI 기반 포트폴리오 실시간 뉴스룸")
         
-        news_feeds = [
-            {"status": "positive", "title": "엔비디아, 차세대 인공지능 칩 '블랙웰' 출하 가속화... 공급 부족 연말 해소 전망", "ticker": "NVDA", "related": ["SOXL", "SK Hynix"]},
-            {"status": "positive", "title": "AMD, 새로운 라이젠 AI 프로세서 벤치마크 유출... 인텔 대비 성능 우위", "ticker": "AMD", "related": ["SOXL"]},
-            {"status": "negative", "title": "미국 법무부, 반독점 점검 위해 빅테크 AI 독점 조사 수위 강화 검토", "ticker": "NVDA", "related": ["AMD", "SOXL"]},
-            {"status": "positive", "title": "SK하이닉스, 12단 HBM3E 엔비디아 최종 퀄테스트 통과 임박 소식에 강세", "ticker": "SK Hynix", "related": ["NVDA"]},
-            {"status": "negative", "title": "국제 유가 및 국채 금리 재상승 분위기... 기술주 중심 차익실현 매물 출하", "ticker": "SOXL", "related": ["NVDA", "AMD"]}
-        ]
+        # 📰 은비 님 기획 매핑 파트: 빅이슈별 긍정/부정 수혜주 분석실
+        st.markdown("### 글로벌 거시 경제 및 빅이슈 분석실")
+        st.markdown("<small style='color:#64748b;'>오늘 시장의 핵심 뉴스가 미 증시 전체 종목에 미치는 긍정/부정 영향을 분석합니다.</small>", unsafe_allow_html=True)
         
-        col_news1, col_news2 = st.columns(2)
-        with col_news1:
-            st.markdown("<h4 style='color:#22c55e;'>긍정 시그널</h4>", unsafe_allow_html=True)
-            for n in [n for n in news_feeds if n["status"] == "positive"]:
-                with st.container(border=True):
-                    st.markdown(f"**{n['title']}**")
-                    st.markdown(f"<small>관련주: `{n['ticker']}` " + " ".join([f"`{r}`" for r in n["related"]]) + "</small>", unsafe_allow_html=True)
-                    
-        with col_news2:
-            st.markdown("<h4 style='color:#ef4444;'>경계 시그널</h4>", unsafe_allow_html=True)
-            for n in [n for n in news_feeds if n["status"] == "negative"]:
-                with st.container(border=True):
-                    st.markdown(f"**{n['title']}**")
-                    st.markdown(f"<small>관련주: `{n['ticker']}` " + " ".join([f"`{r}`" for r in n["related"]]) + "</small>", unsafe_allow_html=True)
+        # 1. 첫 번째 빅이슈: 퀄컴 AI칩 대량 계약
+        with st.container(border=True):
+            st.markdown("<h4 style='color:#1e293b;'>🔥 이슈 1위: 퀄컴 AI칩 대량 계약 체결</h4>", unsafe_allow_html=True)
+            st.markdown("<p style='color:#475569; font-size:0.9rem;'>바이트댄스의 퀄컴 맞춤형 AI ASIC 도입으로 인해 빅테크들의 독점 구도가 다변화되고 칩 수요가 폭발하고 있습니다.</p>", unsafe_allow_html=True)
+            
+            col_q1, col_q2 = st.columns(2)
+            with col_q1:
+                st.markdown("<span style='color:#22c55e; font-weight:bold;'>🟢 수혜 (긍정 영향)</span>", unsafe_allow_html=True)
+                st.info("**AI 반도체 및 팹리스 생태계 전반 호재**\n\n칩 수요 증가 및 인프라 투자 확대로 매출 성장이 기대됩니다.\n\n* **연관 종목:** 퀄컴(QCOM), 엔비디아(NVDA), AMD, 마벨 테크놀로지(MRVL)")
+            with col_q2:
+                st.markdown("<span style='color:#64748b; font-weight:bold;'>⚪ 영향 미비 또는 경계</span>", unsafe_allow_html=True)
+                st.caption("기존 레거시 서버나 모바일 단독 칩 제조사들의 경우 단기적인 자금 쏠림 현상으로 소외될 수 있습니다.\n\n* **연관 종목:** 인텔(INTC), 텍사스 인스트루먼트(TXN)")
+
+        st.write("")
+
+        # 2. 두 번째 빅이슈: 미 장기 국채 금리 급등
+        with st.container(border=True):
+            st.markdown("<h4 style='color:#1e293b;'>🔥 이슈 2위: 미 10년물 장기 국채 금리 급등</h4>", unsafe_allow_html=True)
+            st.markdown("<p style='color:#475569; font-size:0.9rem;'>인플레이션 우려 재점화로 채권 금리가 급등하면서, 안전 자산 선호 심리가 부각되고 자금이 이동하고 있습니다.</p>", unsafe_allow_html=True)
+            
+            col_m1, col_m2 = st.columns(2)
+            with col_m1:
+                st.markdown("<span style='color:#64748b; font-weight:bold;'>⚪ 수혜 (긍정 영향)</span>", unsafe_allow_html=True)
+                st.caption("금리 상승기 마진이 확대되는 전통 금융주 및 자금 유입이 일어나는 채권형 자산이 방어력을 보입니다.\n\n* **연관 종목:** JP모건(JPM), 골드만삭스(GS), SHV(단기채 ETF)")
+            with col_m2:
+                st.markdown("<span style='color:#ef4444; font-weight:bold;'>🔴 타격 (부정 영향)</span>", unsafe_allow_html=True)
+                st.error("**고밸류에이션 성장주 평가 부담 증가**\n\n미래 가치를 앞당겨와 평가받는 기술주들의 멀티플 부담과 변동성이 커질 수 있습니다.\n\n* **연관 종목:** 엔비디아(NVDA), AMD, 인텔(INTC), 마이크로소프트(MSFT)")
 
     # ------------------------------------------------------------------
-    # [서브탭 2] 정밀 매도 시뮬레이터
+    # [서브탭 2] 정밀 매도 시뮬레이터 (오리지널 담백 버전 유지)
     # ------------------------------------------------------------------
     with sub_tab2:
         if df is None or df.empty:
@@ -137,7 +145,7 @@ def show_guide(df, exchange_rate, current_prices):
             st.metric(label="선입선출법(FIFO) 차익", value=f"₩{int(fifo_gain_krw):,}")
 
     # ------------------------------------------------------------------
-    # [서브탭 3] 계산법 원리 마스터
+    # [서브탭 3] 계산법 원리 마스터 (오리지널 담백 버전 유지)
     # ------------------------------------------------------------------
     with sub_tab3:
         st.markdown("### 한눈에 비교하는 세금 계산법 차이 원리")
