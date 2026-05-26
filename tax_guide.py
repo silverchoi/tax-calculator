@@ -40,15 +40,21 @@ def extract_main_keywords(title_text):
     return "해당 경제 이슈"
 
 def analyze_news_sentiment_realtime(news_items):
-    """실시간 뉴스의 키워드를 정밀 판별하여 매번 다른 6대 섹터 종목을 꽂아주는 동적 엔진"""
+    """실시간 뉴스의 키워드를 정밀 판별하여 매번 다른 섹터 종목을 꽂아주는 동적 엔진"""
     analyzed_feeds = []
+    
+    positive_keywords = ["robust", "higher", "surge", "gain", "growth", "demand", "breakthrough", "surprise", "buy", "bullish", "accelerate", "expand", "up", "rise", "outlook"]
+    positive_keywords += ["deal", "plans", "record"] # 뺌방지 추가
+    
+    negative_keywords = ["pressure", "concern", "drop", "fall", "decline", "investigation", "probe", "rate surge", "yields rise", "bearish", "risk", "inflation", "down", "fed", "pull back"]
     
     for news in news_items:
         text_lower = (news["title"] + " " + news["desc"]).lower()
         topic_keywords = extract_main_keywords(news["title"])
         
-        # 🚨 [핵심 개선] 뉴스의 세부 성격을 명확히 분류하여 종목 다변화 처리
-        # 1. 국채 금리 / 인플레이션 / 연준 긴축 (악재 타겟)
+        # 🚨 뉴스 내용 강제 분석 분기점 다변화 (필터망 촘촘하게 업그레이드)
+        
+        # 1. 국채 금리 / 인플레이션 / 연준 긴축 (매크로 악재 타겟)
         if any(k in text_lower for k in ["yield", "rate", "inflation", "fed", "hawkish", "hike"]):
             status = "negative"
             summary_desc = f"현재 월가에서는 {topic_keywords}에 따른 거시경제 긴축 우려를 주시하고 있습니다. 고금리 환경은 미래 가치를 선반영하는 기술주 전반의 멀티플 축소 압박으로 이어집니다."
@@ -57,7 +63,32 @@ def analyze_news_sentiment_realtime(news_items):
                 "실시간 타격 요인 분석": ["고밸류에이션 기술주 멀티플 압박", "전기차 등 고금리 취약 섹터 수요 둔화", "시가총액 상위 빅테크 자금 유출 우려", "반도체 지수 레버리지 변동성 노출"]
             }
             
-        # 2. 반도체 / AI / 하드웨어 칩 (반도체 호재 타겟)
+        # 2. ✨[은비 님 스크린샷 저격] 금 / 원자재 / 안전자산 (원자재 테마 타겟)
+        elif any(k in text_lower for k in ["gold", "silver", "commodity", "metal", "oil", "energy", "crude"]):
+            status = "positive"
+            summary_desc = f"글로벌 인플레이션 헤지 수요와 지정학적 리스크 헷징으로 인해 {topic_keywords} 원자재 시장으로 투자 자금 유입(유동성 집중) 시그널이 포착됩니다."
+            related_data = {
+                "연관 종목 (수혜 기대)": ["뉴몬트 (NEM)", "배릭 골드 (GOLD)", "SPDR 금 ETF (GLD)", "엑슨모빌 (XOM)"],
+                "실시간 호재 요인 분석": ["금 가격 상승에 따른 채굴 기업 마진 폭발", "안전자산 선호 심리 집중 수혜", "원자재 현물 가격 연동 포트폴리오 가치 상승", "에너지 원유 공급 부족에 따른 정제 마진 확대"]
+            }
+
+        # 3. ✨[은비 님 스크린샷 저격] 도소매 유통 / 소비재 / 이커머스 / 백화점 (소비재 테마 타겟)
+        elif any(k in text_lower for k in ["retail", "consumer", "spend", "sales", "store", "stores", "wholesale", "bj's", "customer", "pull back"]):
+            status = "positive" if "pull back" not in text_lower else "negative"
+            if status == "positive":
+                summary_desc = f"미국 내 {topic_keywords} 기반 소매 유통 마켓의 소비 지표가 견고하게 유지됨에 따라 오프라인 유통 공룡 및 대형 회원가입형 마트들의 실적 우위가 기대됩니다."
+                related_data = {
+                    "연관 종목 (수혜 기대)": ["아마존 (AMZN)", "월마트 (WMT)", "코스트코 (COST)", "타겟 (TGT)"],
+                    "실시간 호재 요인 분석": ["이커머스 및 오프라인 트래픽 동반 상승", "필수 소비재 중심의 가격 방어력 확보", "대형 멤버십 마트의 탄탄한 구독 요금 기반 수익", "유통망 효율화를 통한 영업마진 개선"]
+                }
+            else:
+                summary_desc = f"소비자들이 지출을 줄이는 {topic_keywords} 현상이 포착되면서, 일반 소매/유통 섹터의 단기 실적 둔화 우려와 압박이 작용할 수 있습니다."
+                related_data = {
+                    "연관 종목 (피해 우려)": ["타겟 (TGT)", "메이시스 (M)", "나이키 (NKE)", "홈디포 (HD)"],
+                    "실시간 타격 요인 분석": ["소비 심리 위축에 따른 객단가 하락", "의류/잡화 등 비필수재 재고 부담 증가", "유통 매장 유지 관리 비용 부담 가중", "소비자 지출 우선순위 후순위 밀림 밀림"]
+                }
+            
+        # 4. 반도체 / AI / 하드웨어 칩 (반도체 호재 타겟)
         elif any(k in text_lower for k in ["ai", "chip", "semiconductor", "nvidia", "qualcomm", "amd", "blackwell", "hardware"]):
             status = "positive"
             summary_desc = f"최신 보고서에 따르면 {topic_keywords} 국면이 반도체 및 인공지능 공급망 전반의 장기 성장을 강하게 견인하고 있습니다."
@@ -66,7 +97,7 @@ def analyze_news_sentiment_realtime(news_items):
                 "실시간 호재 요인 분석": ["AI 칩 수요 폭발로 스마트폰/AP 마진 견인", "AI 그래픽처리장치(GPU) 시장 지배력 지속", "차세대 가속기 라인업 강화", "데이터센터 고대역폭 인프라 확충"]
             }
             
-        # 3. 애플 / 아이폰 / 모바일 (애플 생태계 타겟)
+        # 5. 애플 / 아이폰 / 모바일 (애플 생태계 타겟)
         elif any(k in text_lower for k in ["apple", "iphone", "ipad", "aapl"]):
             status = "positive"
             summary_desc = f"월가에서는 {topic_keywords} 트렌드가 스마트 디바이스 교체 주기 도래 및 온디바이스 AI 시장의 마진 개선에 크게 기여할 것으로 평가합니다."
@@ -75,8 +106,8 @@ def analyze_news_sentiment_realtime(news_items):
                 "실시간 호재 요인 분석": ["프리미엄 디바이스 판매 회복세", "초미세 파운드리 글로벌 독점 수혜", "모바일 아키텍처 라이선스 매출 성장", "통신 칩 및 모바일 컴포넌트 공급 확대"]
             }
             
-        # 4. 전통 금융 / 은행 / 금리 수혜 (금융 섹터 타겟)
-        elif any(k in text_lower for k in ["bank", "banking", "finance", "yields rise", " Goldman ", " JPMorgan "]):
+        # 6. 전통 금융 / 은행 / 금리 수혜 (금융 섹터 타겟)
+        elif any(k in text_lower for k in ["bank", "banking", "finance", " Goldman ", " JPMorgan "]):
             status = "positive"
             summary_desc = f"시장 유동성이 {topic_keywords} 흐름을 타면서, 예대마진 확대가 기대되는 전통 대형 금융주 중심으로 강한 방어 수급이 포착됩니다."
             related_data = {
@@ -84,16 +115,7 @@ def analyze_news_sentiment_realtime(news_items):
                 "실시간 호재 요인 분석": ["금리 상승에 따른 순이자마진(NIM) 개선", "투자은행(IB) 부문 거래 대금 회복", "자산관리 및 수수료 기반 매출 견인", "금융 시장 유동성 방어주 매력 부각"]
             }
             
-        # 5. 소매 유통 / 소비재 / 이커머스 (소비재 테마 타겟)
-        elif any(k in text_lower for k in ["retail", "consumer", "spend", "amazon", "walmart", "sales"]):
-            status = "positive"
-            summary_desc = f"미국 내 {topic_keywords} 지표가 견고하게 유지됨에 따라 민간 소비 심리 회복 및 이커머스 인프라 기업들의 실적 우위가 기대됩니다."
-            related_data = {
-                "연관 종목 (수혜 기대)": ["아마존 (AMZN)", "월마트 (WMT)", "코스트코 (COST)", "홈디포 (HD)"],
-                "실시간 호재 요인 분석": ["온라인 플랫폼 및 클라우드 동반 성장", "필수 소비재 중심의 안정적 현금 흐름", "오프라인 멤버십 기반 트래픽 증가", "인프라 개선을 통한 물류 마진 확보"]
-            }
-            
-        # 6. 기타 일반 대형 빅테크 / 소프트웨어 (빅테크 테마 타겟)
+        # 7. 소프트웨어 / 플랫폼 (디폴트 스케일링)
         else:
             status = "positive"
             summary_desc = f"현재 미 증시는 {topic_keywords} 이슈를 중심으로 소프트웨어 혁신 및 클라우드 플랫폼의 지배력이 견고해지는 흐름을 보이고 있습니다."
@@ -123,7 +145,7 @@ def show_guide(df, exchange_rate, current_prices):
         today = datetime.date(2026, 5, 27)
         all_events = [
             {"date": datetime.date(2026, 5, 19), "ticker": "NVDA", "title": "FY2027 Q1 실적 발표 완료"},
-            {"date": datetime.date(2026, 6, 2), "ticker": "AMD", "title": "BofA 글로벌 테크 콘너런스 (CFO 발표 예정)"},
+            {"date": datetime.date(2026, 6, 2), "ticker": "AMD", "title": "BofA 글로벌 테크 콘퍼런스 (CFO 발표 예정)"},
             {"date": datetime.date(2026, 6, 22), "ticker": "SOXL", "title": "분기 배당금 선언일 예정"},
             {"date": datetime.date(2026, 6, 23), "ticker": "SOXL", "title": "배당락일 (Ex-Dividend Date)"},
             {"date": datetime.date(2026, 7, 23), "ticker": "SK Hynix", "title": "FY2026 Q2 실적 발표 (예정)"},
@@ -153,7 +175,7 @@ def show_guide(df, exchange_rate, current_prices):
         st.divider()
         
         st.markdown("### 어떤 영향을 줄까?")
-        st.markdown("<p style='color:#64748b; font-size:0.85rem; margin-top:-10px;'>월가 실시간 뉴스의 성격을 6대 섹터로 자동 대조하여 맞춤형 종목 리스트와 분석을 출력합니다.</p>", unsafe_allow_html=True)
+        st.markdown("<p style='color:#64748b; font-size:0.85rem; margin-top:-10px;'>원자재, 유통, 테크 등 미 마켓 실시간 기사 성격에 맞춰 관련 종목과 실시간 영향도를 분류합니다.</p>", unsafe_allow_html=True)
         
         with st.spinner("실시간 월가 뉴스 수집 및 테마주 맵핑 연산 중..."):
             raw_news_feeds = fetch_realtime_market_news()
@@ -171,7 +193,6 @@ def show_guide(df, exchange_rate, current_prices):
                     st.error(news_node["desc"])
                     st.markdown("<span style='color:#ef4444; font-weight:bold; font-size:0.9rem;'>🔴 실시간 관련 테마 피해 우려주</span>", unsafe_allow_html=True)
                 
-                # 섹터별로 완전히 다르게 준비된 데이터프레임 매핑 출력
                 st.dataframe(news_node["related_df"], use_container_width=True, hide_index=True)
             st.write("")
 
