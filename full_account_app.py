@@ -30,27 +30,18 @@ def load_data():
     except:
         return None
 
-# ✨ 야후 파이낸스에서 가장 확실하게 현재가를 긁어오는 끝판왕 함수
+# ✨ 꼬임 현상을 방지하는 완벽한 실시간 주가 추출 함수
 def get_current_prices(tickers):
     prices = {}
     for ticker in tickers:
         try:
             stock = yf.Ticker(ticker)
-            
-            # 1단계: 가장 직관적이고 확실한 실시간 가격 긁어오기 (기본 history 엔진)
-            # prepost=True를 넣어 프리마켓/애프터마켓 가격까지 강제로 추적합니다.
             todays_data = stock.history(period='1d', prepost=True)
-            
             if not todays_data.empty:
-                # 가장 최신 행의 종가(Close)를 가져옵니다. 
-                # 장중이나 프리마켓에는 이 값이 실시간 현재가가 됩니다.
                 prices[ticker] = todays_data['Close'].iloc[-1]
             else:
-                # 2단계: 만약 history가 비어있다면 info에서 최신 마켓 가격을 다이렉트로 찔러넣기
-                info = stock.info
-                prices[ticker] = info.get('currentPrice', info.get('previousClose', 0.0))
+                prices[ticker] = stock.info.get('previousClose', 0.0)
         except:
-            # 3단계: 에러 발생 시 안전하게 0원으로 처리
             prices[ticker] = 0.0
     return prices
 
@@ -70,14 +61,15 @@ else:
     ma_total_gain_krw = 0
     fifo_total_gain_krw = 0
 
-    for name, group in df.groupby('종목명'):
+    # 🚨 중요: 여기서 꼬이지 않도록 종목명과 코드를 1:1로 정확히 매칭하여 순회합니다
+    for (name, ticker_code), group in df.groupby(['종목명', '코드']):
         group_sorted = group.sort_values('매수일자')
-        ticker_code = group_sorted.iloc[0]['코드']
         total_qty = group_sorted['매수수량'].sum()
         
         total_cost_krw = group_sorted['매수금액(원)'].sum()
         total_cost_usd = (group_sorted['매수가'] * group_sorted['매수수량']).sum()
         
+        # 딕셔너리에서 해당 티커의 주가를 정확하게 낚아챕니다
         now_price_usd = current_prices.get(ticker_code, 0.0)
         if now_price_usd == 0.0:
             now_price_usd = group_sorted.iloc[-1]['매수가'] 
@@ -120,16 +112,13 @@ else:
 
     st.divider()
 
-    # 🎨 여기서부터 테이블 스타일 꾸미기 파트!
     st.subheader("🔍 실시간 종목별 상세 수익 및 절세 분석")
     df_dashboard = pd.DataFrame(total_dashboard)
     
-    # 스타일 함수 정의 (수익률 양수면 빨강, 음수면 파랑)
     def color_roi(val):
         color = '#ef4444' if val > 0 else ('#3b82f6' if val < 0 else '#ffffff')
         return f'color: {color}; font-weight: bold;'
 
-    # 판다스 스타일 적용 엔진
     styled_df = df_dashboard.style\
         .format({
             "현재가($)": "${:,.2f}",
@@ -139,8 +128,8 @@ else:
             "절세 가능 금액(원)": "{:,}원"
         })\
         .map(color_roi, subset=["수익률(%)"])\
+        .highlight_max(subset=["절세 가능 금액(원)"], color="#1e3a1e")
 
-    # 화면에 이쁘게 뿌려주기
     st.dataframe(styled_df, use_container_width=True, hide_index=True)
 
     st.markdown("""
