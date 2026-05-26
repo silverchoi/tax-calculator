@@ -1,85 +1,12 @@
 import streamlit as st
 import pandas as pd
 import datetime
-import yfinance as yf
-import xml.etree.ElementTree as ET
-import urllib.request
-
-def fetch_realtime_market_news():
-    """야후 파이낸스 실시간 마켓 뉴스 RSS 피드를 긁어오는 엔진"""
-    news_list = []
-    try:
-        url = "https://finance.yahoo.com/news/rss"
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req) as response:
-            xml_data = response.read()
-            
-        root = ET.fromstring(xml_data)
-        for item in root.findall('.//item')[:8]:  # 최신 뉴스 8개 추출
-            title = item.find('title').text
-            description = item.find('description').text if item.find('description') is not None else ""
-            news_list.append({"title": title, "desc": description})
-    except Exception as e:
-        # 뉴스 서버 점검 등 예외 발생 시 디폴트 브리핑 데이터로 방어 연산
-        news_list = [
-            {"title": "Tech Stocks Edge Higher as AI Semiconductor Demand Remains Robust Across Global Data Centers", "desc": "NVIDIA, AMD and Marvell Technology lead pre-market gains."},
-            {"title": "Treasury Yields Surge to Multi-Month Highs Prompting Growth Stock Valuation Concerns", "desc": "Higher interest rates put pressure on high-multiple mega cap tech companies including Microsoft and Intel."}
-        ]
-    return news_list
-
-def analyze_news_sentiment_ai(news_items):
-    """뉴스 데이터를 텍스트 마이닝하여 긍정 수혜주와 부정 타격주를 동적으로 자동 분류하는 간이 AI 엔진"""
-    analyzed_feeds = []
-    
-    # 금융 텍스트 가중치 매핑 사전 (전체 미국 상장 주식 커버용)
-    positive_keywords = ["robust", "higher", "surge", "gain", "growth", "demand", "breakthrough", "surprise", "buy", "bullish", "accelerate"]
-    negative_keywords = ["pressure", "concern", "drop", "fall", "decline", "investigation", "probe", "rate surge", "yields rise", "bearish", "risk"]
-    
-    for news in news_items:
-        text_lower = (news["title"] + " " + news["desc"]).lower()
-        
-        # 기본 스탠스 디폴트 지정
-        status = "positive"
-        related_stocks = ["NVDA", "AMD", "MRVL", "QCOM", "SOXL"]
-        
-        # 1. 뉴스 텍스트 컨텍스트 분석
-        pos_score = sum(1 for kw in positive_keywords if kw in text_lower)
-        neg_score = sum(1 for kw in negative_keywords if kw in text_lower)
-        
-        if neg_score > pos_score or "yield" in text_lower or "interest rate" in text_lower or "antitrust" in text_lower:
-            status = "negative"
-            # 금리 급등 이나 규제 이슈 시 타격받는 고밸류 성장주 매핑
-            related_stocks = ["NVDA", "AMD", "INTC", "MSFT", "SOXL"]
-        else:
-            # 반도체 호재 및 AI 수요 증가 시 수혜를 보는 팹리스/빅테크 매핑
-            if "ai" in text_lower or "chip" in text_lower or "semiconductor" in text_lower:
-                related_stocks = ["QCOM", "NVDA", "AMD", "MRVL", "AVGO"]
-            elif "apple" in text_lower:
-                related_stocks = ["AAPL", "TSMC", "QCOM"]
-        
-        # 한글 번역 가독성 처리 (전체 미국 상장주 스케일 요약)
-        summary_text = news["title"]
-        if "yield" in text_lower or "rate" in text_lower:
-            summary_desc = "국채 금리 변동성 및 거시 경제 압박으로 인해 기술주 중심의 멀티플 평가 부담과 자금 변동성이 커질 수 있습니다."
-        elif "ai" in text_lower or "chip" in text_lower:
-            summary_desc = "차세대 AI 인프라 투자 및 맞춤형 ASIC 수요 폭발로 반도체 팹리스 생태계 전반에 강한 자금 유입이 기대됩니다."
-        else:
-            summary_desc = "글로벌 매크로 마켓의 최신 트렌드 이슈입니다. 연관 섹터의 단기 수급 변화를 모니터링할 필요가 있습니다."
-            
-        analyzed_feeds.append({
-            "status": status,
-            "title": summary_text,
-            "desc": summary_desc,
-            "related": related_stocks
-        })
-        
-    return analyzed_feeds
 
 def show_guide(df, exchange_rate, current_prices):
     sub_tab1, sub_tab2, sub_tab3 = st.tabs(["일정 & 뉴스룸", "정밀 시뮬레이터", "계산법 원리 마스터"])
 
     # ------------------------------------------------------------------
-    # [서브탭 1] 실시간 일정 & 진짜 실시간 AI 뉴스룸 📡
+    # [서브탭 1] 일정 및 마켓 뉴스룸 (은비 님 기획안 100% 매핑 🚀)
     # ------------------------------------------------------------------
     with sub_tab1:
         st.markdown("### 내 종목 핵심 마켓 캘린더")
@@ -116,51 +43,54 @@ def show_guide(df, exchange_rate, current_prices):
 
         st.divider()
         
-        # 📡 진짜 실시간 뉴스 연동 모듈 가동
-        st.markdown("### 글로벌 거시 경제 및 빅이슈 분석실")
-        st.markdown("<p style='color:#64748b; font-size:0.85rem;'>야후 파이낸스 실시간 월가 피드를 긁어와 미 증시 전체 종목에 미치는 수혜/타격을 실시간으로 분류합니다.</p>", unsafe_allow_html=True)
+        # 📰 은비 님 스크린샷 룩앤필 1:1 매칭 뉴스룸
+        st.markdown("### 어떤 영향을 줄까?")
         
-        # 실시간 크롤링 및 감성 분석 엔진 슛!
-        raw_news = fetch_realtime_market_news()
-        live_feeds = analyze_news_sentiment_ai(raw_news)
-        
-        # 🟢 수혜 / 🔴 타격 2개 컬럼 쪼개기 레이아웃
-        col_news1, col_news2 = st.columns(2)
-        
-        with col_news1:
-            st.markdown("<h4 style='color:#22c55e; font-weight:700;'>🟢 시장 호재 및 수혜 종목</h4>", unsafe_allow_html=True)
-            pos_feeds = [f for f in live_feeds if f["status"] == "positive"]
-            if pos_feeds:
-                for n in pos_feeds:
-                    with st.container(border=True):
-                        st.markdown(f"**{n['title']}**")
-                        st.markdown(f"<p style='color:#475569; font-size:0.85rem; margin-top:5px;'>{n['desc']}</p>", unsafe_allow_html=True)
-                        tags = " ".join([f"`{stock}`" for stock in n["related"]])
-                        st.markdown(f"<small style='color:#64748b;'>🎯 전체 미 증시 연관 수혜주: {tags}</small>", unsafe_allow_html=True)
-            else:
-                st.caption("현재 뚜렷한 시장 호재 뉴스가 캐치되지 않았습니다.")
-                    
-        with col_news2:
-            st.markdown("<h4 style='color:#ef4444; font-weight:700;'>🔴 시장 악재 및 타격 종목</h4>", unsafe_allow_html=True)
-            neg_feeds = [f for f in live_feeds if f["status"] == "negative"]
-            if neg_feeds:
-                for n in neg_feeds:
-                    with st.container(border=True):
-                        st.markdown(f"**{n['title']}**")
-                        st.markdown(f"<p style='color:#475569; font-size:0.85rem; margin-top:5px;'>{n['desc']}</p>", unsafe_allow_html=True)
-                        tags = " ".join([f"`{stock}`" for stock in n["related"]])
-                        st.markdown(f"<small style='color:#64748b;'>🎯 전체 미 증시 피해 예상주: {tags}</small>", unsafe_allow_html=True)
-            else:
-                st.caption("현재 뚜렷한 시장 악재 뉴스가 캐치되지 않았습니다. 매크로 평온 상태입니다.")
+        # 🟢 1. 호재 뉴스 (긍정 탭 타겟)
+        with st.container(border=True):
+            st.markdown("<p style='font-size:0.85rem; color:#64748b; margin-bottom: 2px;'>이슈 1위</p>", unsafe_allow_html=True)
+            st.markdown("<h4 style='margin-top:0px; color:#1e293b;'>💡 퀄컴 AI칩 대량 계약</h4>", unsafe_allow_html=True)
+            
+            # 설명란
+            st.info("바이트댄스의 퀄컴 맞춤형 AI ASIC 도입으로 AI 데이터센터 칩 수요와 고객 다변화가 커지면서 AI 반도체 매출이 늘어날 수 있어요.")
+            
+            # 연관 종목 (긍정 탭 리스트)
+            st.markdown("<span style='color:#22c55e; font-weight:bold; font-size:0.9rem;'>🟢 연관 종목 (긍정 수혜)</span>", unsafe_allow_html=True)
+            
+            # 깔끔하게 표 형태로 종목 리스트 노출
+            q_data = {
+                "종목명": ["퀄컴 (QCOM)", "엔비디아 (NVDA)", "AMD", "마벨 테크놀로지 (MRVL)"],
+                "섹터/테마 분류": ["AI 칩 설계 주도", "글로벌 AI 대장주 동반 수혜", "GPU 및 ASIC 경쟁력 강화", "네트워크 인프라 수혜"]
+            }
+            st.dataframe(pd.DataFrame(q_data), use_container_width=True, hide_index=True)
+
+        st.write("")
+
+        # 🔴 2. 악재 뉴스 (부정 탭 타겟)
+        with st.container(border=True):
+            st.markdown("<p style='font-size:0.85rem; color:#64748b; margin-bottom: 2px;'>이슈 2위</p>", unsafe_allow_html=True)
+            st.markdown("<h4 style='margin-top:0px; color:#1e293b;'>📉 미 장기금리 급등 우려</h4>", unsafe_allow_html=True)
+            
+            # 설명란
+            st.error("안전자산이 부각돼 자금이 채권으로 이동하며, 미래 가치를 당겨와 평가받는 고배율 AI 반도체 주식들의 밸류에이션 부담과 변동성이 커질 수 있어요.")
+            
+            # 연관 종목 (부정 탭 리스트)
+            st.markdown("<span style='color:#ef4444; font-weight:bold; font-size:0.9rem;'>🔴 연관 종목 (부정 타격)</span>", unsafe_allow_html=True)
+            
+            # 깔끔하게 표 형태로 종목 리스트 노출
+            m_data = {
+                "종목명": ["엔비디아 (NVDA)", "AMD", "인텔 (INTC)", "디렉시온 반도체 3배 (SOXL)"],
+                "위험 요인 요약": ["고밸류에이션 차익실현 압박", "기술주 멀티플 축소 위험", "성장 둔화 및 자본 조달 비용 상승", "레버리지 변동성 직격탄"]
+            }
+            st.dataframe(pd.DataFrame(m_data), use_container_width=True, hide_index=True)
 
     # ------------------------------------------------------------------
-    # [서브탭 2] 정밀 매도 시뮬레이터 (동일 유지)
+    # [서브탭 2 & 3] 기존 정밀 시뮬레이터 및 원리 마스터 (안전 유지)
     # ------------------------------------------------------------------
     with sub_tab2:
         if df is None or df.empty:
             st.warning("데이터가 없습니다.")
             return
-
         unique_titles = df['종목명'].unique()
         st.markdown("### 연간 기본 공제(250만 원) 안전 익절 가이드")
         
@@ -221,12 +151,8 @@ def show_guide(df, exchange_rate, current_prices):
         with res_col2:
             st.metric(label="선입선출법(FIFO) 차익", value=f"₩{int(fifo_gain_krw):,}")
 
-    # ------------------------------------------------------------------
-    # [서브탭 3] 계산법 원리 마스터 (동일 유지)
-    # ------------------------------------------------------------------
     with sub_tab3:
         st.markdown("### 한눈에 비교하는 세금 계산법 차이 원리")
-        
         with st.container(border=True):
             st.markdown("**시뮬레이션 가상 계좌 조건**\n"
                         "* 1차 매수: 10주를 $100에 매수 (원화 환산 원가: ₩1,400,000)\n"
